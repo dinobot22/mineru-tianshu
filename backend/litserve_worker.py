@@ -216,6 +216,15 @@ class MinerUWorkerAPI(ls.LitAPI):
         self.poll_interval = getattr(self.__class__, "_poll_interval", 0.5)
         self.enable_worker_loop = getattr(self.__class__, "_enable_worker_loop", True)
 
+        # 为 MinerU 设置 CUDA_VISIBLE_DEVICES 环境变量
+        # MinerU 使用 PyTorch，通过环境变量控制 GPU
+        # 注意：在 LitServe 的多 worker 架构中，每个 worker 在独立的进程中运行，
+        # 所以修改环境变量是安全的，不会影响其他 worker
+        if "cuda:" in str(device):
+            gpu_id = str(device).split(":")[-1]
+            os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
+            logger.info(f"🎯 Set CUDA_VISIBLE_DEVICES={gpu_id} for MinerU on device {device}")
+
         # 创建输出目录
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
@@ -290,8 +299,8 @@ class MinerUWorkerAPI(ls.LitAPI):
             try:
                 logger.info("🎨 Initializing watermark removal engine...")
                 # PDFWatermarkHandler 只接受 device 和 use_lama 参数
-                self.watermark_handler = PDFWatermarkHandler(device=device, use_lama=True)
-                logger.info("✅ Watermark removal engine initialized")
+                self.watermark_handler = PDFWatermarkHandler(device=str(device), use_lama=True)
+                logger.info(f"✅ Watermark removal engine initialized on {device}")
             except Exception as e:
                 logger.error(f"❌ Failed to initialize watermark removal engine: {e}")
                 self.watermark_handler = None
@@ -537,7 +546,9 @@ class MinerUWorkerAPI(ls.LitAPI):
         """
         使用 MinerU 处理文档
 
-        注意：MinerU 的 do_parse 只接受 PDF 格式，图片需要先转换为 PDF
+        注意：
+        - MinerU 的 do_parse 只接受 PDF 格式，图片需要先转换为 PDF
+        - CUDA_VISIBLE_DEVICES 已在 setup() 阶段设置，MinerU 会自动使用正确的 GPU
         """
         import img2pdf
 
@@ -657,9 +668,9 @@ class MinerUWorkerAPI(ls.LitAPI):
         if self.paddleocr_vl_engine is None:
             from paddleocr_vl import PaddleOCRVLEngine
 
-            # PaddleOCRVLEngine 不接受参数，内部自动管理设备
-            self.paddleocr_vl_engine = PaddleOCRVLEngine()
-            logger.info("✅ PaddleOCR-VL engine loaded (singleton)")
+            # 传递当前 worker 的 device 参数
+            self.paddleocr_vl_engine = PaddleOCRVLEngine(device=str(self.device))
+            logger.info(f"✅ PaddleOCR-VL engine loaded on {self.device} (singleton)")
 
         # 设置输出目录
         output_dir = Path(self.output_dir) / Path(file_path).stem
@@ -677,8 +688,8 @@ class MinerUWorkerAPI(ls.LitAPI):
         if self.sensevoice_engine is None:
             from audio_engines import SenseVoiceEngine
 
-            self.sensevoice_engine = SenseVoiceEngine(device=self.device)
-            logger.info("✅ SenseVoice engine loaded (singleton)")
+            self.sensevoice_engine = SenseVoiceEngine(device=str(self.device))
+            logger.info(f"✅ SenseVoice engine loaded on {self.device} (singleton)")
 
         # 处理音频
         result = self.sensevoice_engine.transcribe(file_path, language=options.get("lang", "auto"))
@@ -695,8 +706,8 @@ class MinerUWorkerAPI(ls.LitAPI):
         if self.video_engine is None:
             from video_engines import VideoProcessingEngine
 
-            self.video_engine = VideoProcessingEngine(device=self.device, output_dir=self.output_dir)
-            logger.info("✅ Video processing engine loaded (singleton)")
+            self.video_engine = VideoProcessingEngine(device=str(self.device))
+            logger.info(f"✅ Video processing engine loaded on {self.device} (singleton)")
 
         # 处理视频
         result = self.video_engine.process_video(

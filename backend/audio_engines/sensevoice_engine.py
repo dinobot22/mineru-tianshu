@@ -38,13 +38,14 @@ class SenseVoiceEngine:
                     cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, model_dir: str = "iic/SenseVoiceSmall", cache_dir: Optional[str] = None):
+    def __init__(self, model_dir: str = "iic/SenseVoiceSmall", cache_dir: Optional[str] = None, device: str = "cuda:0"):
         """
         初始化 SenseVoice 引擎（只执行一次）
 
         Args:
             model_dir: 模型路径或ModelScope模型ID
             cache_dir: 模型缓存目录
+            device: 设备 (cuda:0, cuda:1, cpu 等)
         """
         if self._initialized:
             return
@@ -54,6 +55,7 @@ class SenseVoiceEngine:
                 return
 
             self.model_dir = model_dir
+            self.device = device  # 保存 device 参数
 
             # 默认缓存目录：项目根目录/models/sensevoice
             if cache_dir is None:
@@ -69,6 +71,7 @@ class SenseVoiceEngine:
 
             logger.info("🔧 SenseVoice Engine initialized")
             logger.info(f"   Model: {self.model_dir}")
+            logger.info(f"   Device: {self.device}")
             logger.info(f"   Cache: {self.cache_dir}")
 
     def _load_model(self):
@@ -96,7 +99,7 @@ class SenseVoiceEngine:
                     remote_code="./model.py",
                     vad_model="fsmn-vad",  # 语音活动检测
                     vad_kwargs={"max_single_segment_time": 30000},  # 最大单段时长30秒
-                    device="cuda:0",  # 使用GPU
+                    device=self.device,  # 使用指定的设备
                 )
 
                 logger.info("=" * 60)

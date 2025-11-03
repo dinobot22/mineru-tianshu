@@ -41,9 +41,12 @@ class VideoProcessingEngine:
                     cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self, device: str = "cuda:0"):
         """
         初始化视频处理引擎（只执行一次）
+
+        Args:
+            device: 设备 (cuda:0, cuda:1, cpu 等)
         """
         if self._initialized:
             return
@@ -52,9 +55,11 @@ class VideoProcessingEngine:
             if self._initialized:
                 return
 
+            self.device = device  # 保存 device 参数
             self._initialized = True
 
             logger.info("🔧 Video Processing Engine initialized")
+            logger.info(f"   Device: {self.device}")
             logger.info(f"   Supported formats: {', '.join(self.SUPPORTED_FORMATS)}")
 
     def _load_audio_engine(self):
@@ -71,11 +76,13 @@ class VideoProcessingEngine:
             try:
                 # 导入 SenseVoice 引擎
                 # 在同一个 backend 目录下，直接导入同级模块
-                from audio_engines.sensevoice_engine import get_engine
+                from audio_engines.sensevoice_engine import SenseVoiceEngine
 
-                self._audio_engine = get_engine()
+                # 使用与 Video Engine 相同的 device
+                self._audio_engine = SenseVoiceEngine(device=self.device)
 
                 logger.info("✅ Audio engine loaded successfully")
+                logger.info(f"   Using device: {self.device}")
 
                 return self._audio_engine
 

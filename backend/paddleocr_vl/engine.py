@@ -53,9 +53,12 @@ class PaddleOCRVLEngine:
                     cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self, device: str = "cuda:0"):
         """
         初始化引擎（只执行一次）
+
+        Args:
+            device: 设备 (cuda:0, cuda:1 等，PaddleOCR 仅支持 GPU)
 
         注意：
         - PaddleOCR-VL 会自动管理模型的下载和缓存
@@ -68,12 +71,22 @@ class PaddleOCRVLEngine:
             if self._initialized:
                 return
 
+            self.device = device  # 保存 device 参数
+
+            # 从 device 字符串中提取 GPU ID (例如 "cuda:0" -> 0)
+            if "cuda:" in device:
+                self.gpu_id = int(device.split(":")[-1])
+            else:
+                self.gpu_id = 0
+                logger.warning(f"⚠️  Invalid device format: {device}, using GPU 0")
+
             # 检查 GPU 可用性（PaddleOCR-VL 仅支持 GPU）
             self._check_gpu_availability()
 
             self._initialized = True
 
             logger.info("🔧 PaddleOCR-VL Engine initialized")
+            logger.info(f"   Device: {self.device} (GPU ID: {self.gpu_id})")
             logger.info("   Model: PaddlePaddle/PaddleOCR-VL (auto-managed)")
             logger.info("   Auto Multi-Language: Enabled (109+ languages)")
             logger.info("   GPU Only: CPU not supported")
@@ -140,7 +153,16 @@ class PaddleOCRVLEngine:
             logger.info("=" * 60)
 
             try:
+                import paddle
                 from paddleocr import PaddleOCRVL
+
+                # 设置 PaddlePaddle 使用指定的 GPU
+                # 必须在创建 PaddleOCRVL 实例之前设置
+                if paddle.is_compiled_with_cuda():
+                    paddle.set_device(f"gpu:{self.gpu_id}")
+                    logger.info(f"🎯 PaddlePaddle device set to: gpu:{self.gpu_id}")
+                else:
+                    logger.warning("⚠️  CUDA not available, PaddleOCR-VL may not work")
 
                 # 初始化 PaddleOCR-VL（新版本 API）
                 # 为了最佳识别效果，启用所有增强功能
@@ -161,6 +183,7 @@ class PaddleOCRVLEngine:
 
                 logger.info("=" * 60)
                 logger.info("✅ PaddleOCR-VL Pipeline loaded successfully!")
+                logger.info(f"   Device: GPU {self.gpu_id}")
                 logger.info("   Features: Orientation correction, Text unwarping, Layout detection")
                 logger.info("=" * 60)
 
