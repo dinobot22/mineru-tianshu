@@ -185,7 +185,11 @@ class MinerUWorkerAPI(ls.LitAPI):
         if "cuda:" in str(device):
             gpu_id = str(device).split(":")[-1]
             os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
-            logger.info(f"🎯 [GPU Isolation] Set CUDA_VISIBLE_DEVICES={gpu_id} (device={device})")
+            # 【关键】设置 MinerU 的设备模式为 cuda:0
+            # 因为设置了 CUDA_VISIBLE_DEVICES 后，进程只能看到一张卡（逻辑 ID 变为 0）
+            os.environ["MINERU_DEVICE_MODE"] = "cuda:0"
+            logger.info(f"🎯 [GPU Isolation] Set CUDA_VISIBLE_DEVICES={gpu_id} (Physical GPU {gpu_id} → Logical GPU 0)")
+            logger.info("🎯 [GPU Isolation] Set MINERU_DEVICE_MODE=cuda:0")
 
         import socket
 
@@ -235,6 +239,22 @@ class MinerUWorkerAPI(ls.LitAPI):
         global do_parse, get_vram, clean_memory
         from mineru.cli.common import do_parse
         from mineru.utils.model_utils import get_vram, clean_memory
+
+        # 配置 MinerU 的 VRAM 设置
+        if os.getenv("MINERU_VIRTUAL_VRAM_SIZE", None) is None:
+            device_mode = os.environ.get("MINERU_DEVICE_MODE", str(device))
+            if device_mode.startswith("cuda") or device_mode.startswith("npu"):
+                try:
+                    # 注意：get_vram 需要传入设备字符串（如 "cuda:0"）
+                    vram = round(get_vram(device_mode))
+                    os.environ["MINERU_VIRTUAL_VRAM_SIZE"] = str(vram)
+                    logger.info(f"🎮 [MinerU VRAM] Detected: {vram}GB")
+                except Exception as e:
+                    os.environ["MINERU_VIRTUAL_VRAM_SIZE"] = "8"  # 默认值
+                    logger.warning(f"⚠️  Failed to detect VRAM, using default: 8GB ({e})")
+            else:
+                os.environ["MINERU_VIRTUAL_VRAM_SIZE"] = "1"
+                logger.info("🎮 [MinerU VRAM] CPU mode, set to 1GB")
 
         # 验证 PyTorch CUDA 设置
         try:
@@ -338,16 +358,12 @@ class MinerUWorkerAPI(ls.LitAPI):
                 self.watermark_handler = None
 
         logger.info("✅ Worker ready")
-        logger.info(f"   Device: {device}")
+        logger.info(f"   LitServe Device: {device}")
+        logger.info(f"   MinerU Device Mode: {os.environ.get('MINERU_DEVICE_MODE', 'auto')}")
+        logger.info(f"   MinerU VRAM: {os.environ.get('MINERU_VIRTUAL_VRAM_SIZE', 'unknown')}GB")
         if "cuda" in str(device).lower():
-            try:
-                vram_gb = get_vram(device.split(":")[-1])
-                if vram_gb is not None:
-                    logger.info(f"   VRAM: {vram_gb:.0f}GB")
-                else:
-                    logger.info("   VRAM: Unknown")
-            except Exception as e:
-                logger.warning(f"   VRAM: Unable to detect ({e})")
+            physical_gpu = os.environ.get("CUDA_VISIBLE_DEVICES", "?")
+            logger.info(f"   Physical GPU: {physical_gpu}")
 
         # 如果启用了 worker 循环，启动后台线程拉取任务
         if self.enable_worker_loop:
