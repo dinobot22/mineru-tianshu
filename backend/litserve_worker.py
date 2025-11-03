@@ -1111,21 +1111,54 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # 处理 devices 参数
+    # ============================================================================
+    # 从环境变量读取配置（如果命令行没有指定）
+    # ============================================================================
+    # 1. 如果没有通过命令行指定 devices，尝试从环境变量 CUDA_VISIBLE_DEVICES 读取
     devices = args.devices
+    if devices == "auto":
+        env_devices = os.getenv("CUDA_VISIBLE_DEVICES")
+        if env_devices:
+            devices = env_devices
+            logger.info(f"📊 Using devices from CUDA_VISIBLE_DEVICES: {devices}")
+
+    # 2. 处理 devices 参数（支持逗号分隔的字符串）
     if devices != "auto":
         try:
             devices = [int(d.strip()) for d in devices.split(",")]
+            logger.info(f"📊 Parsed devices: {devices}")
         except ValueError:
             logger.error(f"❌ Invalid devices format: {devices}. Use comma-separated integers (e.g., '0,1,2')")
             sys.exit(1)
+
+    # 3. 如果没有通过命令行指定 workers-per-device，尝试从环境变量 WORKER_GPUS 读取
+    workers_per_device = args.workers_per_device
+    if args.workers_per_device == 1:  # 默认值
+        env_workers = os.getenv("WORKER_GPUS")
+        if env_workers:
+            try:
+                workers_per_device = int(env_workers)
+                logger.info(f"📊 Using workers-per-device from WORKER_GPUS: {workers_per_device}")
+            except ValueError:
+                logger.warning(f"⚠️  Invalid WORKER_GPUS value: {env_workers}, using default: 1")
+
+    # 4. 如果没有通过命令行指定 port，尝试从环境变量 PORT 读取
+    port = args.port
+    if args.port == 9000:  # 默认值
+        env_port = os.getenv("PORT")
+        if env_port:
+            try:
+                port = int(env_port)
+                logger.info(f"📊 Using port from PORT env: {port}")
+            except ValueError:
+                logger.warning(f"⚠️  Invalid PORT value: {env_port}, using default: 9000")
 
     start_litserve_workers(
         output_dir=args.output_dir,
         accelerator=args.accelerator,
         devices=devices,
-        workers_per_device=args.workers_per_device,
-        port=args.port,
+        workers_per_device=workers_per_device,
+        port=port,
         poll_interval=args.poll_interval,
         enable_worker_loop=not args.disable_worker_loop,
     )
