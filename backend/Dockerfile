@@ -44,8 +44,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 \
     && update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1
 
-# 升级 pip
-RUN python3 -m pip install --upgrade pip setuptools wheel --break-system-packages --ignore-installed
+# 升级 pip（使用国内镜像源，增加超时时间）
+RUN python3 -m pip install --upgrade pip setuptools wheel \
+    -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    --break-system-packages \
+    --ignore-installed \
+    --default-timeout=300
 
 # ============================================================================
 # Stage 2: Dependencies Installation
@@ -61,33 +65,45 @@ COPY backend/requirements.txt /tmp/requirements.txt
 # Step 1: 安装 PaddlePaddle GPU 版本（~1.8GB，耐心等待）
 RUN pip install paddlepaddle-gpu==3.2.0 \
     -i https://www.paddlepaddle.org.cn/packages/stable/cu126/ \
-    --break-system-packages
+    --break-system-packages \
+    --default-timeout=600 \
+    --retries 5
 
 # Step 2: 安装 PyTorch (CUDA 12.6, ~2GB)
 RUN pip install torch==2.6.0+cu126 torchvision==0.21.0+cu126 \
     --index-url https://download.pytorch.org/whl/cu126 \
-    --break-system-packages
+    --break-system-packages \
+    --default-timeout=600 \
+    --retries 5
 
 # Step 3: 预先安装 Python 3.12 关键依赖
 RUN pip install "kiwisolver>=1.4.5" "Pillow>=11.0.0" \
     "numpy>=1.26.0,<2.0.0" "setuptools>=75.0.0" "lxml>=5.3.0" \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
-    --break-system-packages
+    --break-system-packages \
+    --default-timeout=300 \
+    --retries 5
 
 # Step 4: 安装其他依赖（跳过已安装的 torch 和 paddle）
 RUN pip install -r /tmp/requirements.txt \
     --no-deps \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
-    --break-system-packages || true
+    --break-system-packages \
+    --default-timeout=300 \
+    --retries 5 || true
 
 RUN pip install --break-system-packages \
+    --default-timeout=300 \
+    --retries 5 \
     https://paddle-whl.bj.bcebos.com/nightly/cu126/safetensors/safetensors-0.6.2.dev0-cp38-abi3-linux_x86_64.whl
 
 
 # Step 5: 补充安装缺失的依赖
 RUN pip install -r /tmp/requirements.txt \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
-    --break-system-packages
+    --break-system-packages \
+    --default-timeout=300 \
+    --retries 5
 
 # 验证安装（仅检查导入，不验证 CUDA，因为构建时无 GPU）
 RUN python -c "import sys; print('Python:', sys.version)" && \
