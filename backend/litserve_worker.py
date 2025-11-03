@@ -94,6 +94,9 @@ from task_db import TaskDB
 # from mineru.cli.common import do_parse
 # from mineru.utils.model_utils import get_vram, clean_memory
 
+# 导入 importlib 用于检查模块可用性
+import importlib.util
+
 # 尝试导入 markitdown
 try:
     from markitdown import MarkItDown
@@ -103,18 +106,14 @@ except ImportError:
     MARKITDOWN_AVAILABLE = False
     logger.warning("⚠️  markitdown not available, Office format parsing will be disabled")
 
-# 尝试导入 PaddleOCR-VL
-try:
-    from paddleocr_vl import PaddleOCRVLEngine  # noqa: F401
-
-    PADDLEOCR_VL_AVAILABLE = True
+# 检查 PaddleOCR-VL 是否可用（不要导入，避免初始化 CUDA）
+PADDLEOCR_VL_AVAILABLE = importlib.util.find_spec("paddleocr_vl") is not None
+if PADDLEOCR_VL_AVAILABLE:
     logger.info("✅ PaddleOCR-VL engine available")
-except ImportError:
-    PADDLEOCR_VL_AVAILABLE = False
+else:
     logger.info("ℹ️  PaddleOCR-VL not available (optional)")
 
 # 尝试导入 SenseVoice 音频处理
-import importlib.util
 
 SENSEVOICE_AVAILABLE = importlib.util.find_spec("audio_engines") is not None
 if SENSEVOICE_AVAILABLE:
@@ -129,16 +128,12 @@ if VIDEO_ENGINE_AVAILABLE:
 else:
     logger.info("ℹ️  Video processing engine not available (optional)")
 
-# 尝试导入水印去除引擎
-try:
-    from remove_watermark.watermark_remover import WatermarkRemover  # noqa: F401
-    from remove_watermark.pdf_watermark_handler import PDFWatermarkHandler
-
-    WATERMARK_REMOVAL_AVAILABLE = True
+# 检查水印去除引擎是否可用（不要导入，避免初始化 CUDA）
+WATERMARK_REMOVAL_AVAILABLE = importlib.util.find_spec("remove_watermark") is not None
+if WATERMARK_REMOVAL_AVAILABLE:
     logger.info("✅ Watermark removal engine available")
-except ImportError as e:
-    WATERMARK_REMOVAL_AVAILABLE = False
-    logger.info(f"ℹ️  Watermark removal engine not available (optional): {e}")
+else:
+    logger.info("ℹ️  Watermark removal engine not available (optional)")
 
 # 尝试导入格式引擎（专业领域格式支持）
 try:
@@ -348,6 +343,9 @@ class MinerUWorkerAPI(ls.LitAPI):
         if WATERMARK_REMOVAL_AVAILABLE and "cuda" in str(device).lower():
             try:
                 logger.info("🎨 Initializing watermark removal engine...")
+                # 延迟导入，确保在 CUDA_VISIBLE_DEVICES 设置之后
+                from remove_watermark.pdf_watermark_handler import PDFWatermarkHandler
+
                 # 注意：由于在 setup() 中已设置 CUDA_VISIBLE_DEVICES，
                 # 该进程只能看到一个 GPU（映射为 cuda:0）
                 self.watermark_handler = PDFWatermarkHandler(device="cuda:0", use_lama=True)
