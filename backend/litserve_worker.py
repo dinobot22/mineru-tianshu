@@ -1128,13 +1128,29 @@ if __name__ == "__main__":
     # ============================================================================
     # 从环境变量读取配置（如果命令行没有指定）
     # ============================================================================
-    # 1. 如果没有通过命令行指定 devices，尝试从环境变量 CUDA_VISIBLE_DEVICES 读取
+    # 1. 如果没有通过命令行指定 devices，尝试自动检测或从环境变量读取
     devices = args.devices
     if devices == "auto":
+        # 首先尝试从环境变量 CUDA_VISIBLE_DEVICES 读取（如果用户明确设置了）
         env_devices = os.getenv("CUDA_VISIBLE_DEVICES")
         if env_devices:
             devices = env_devices
             logger.info(f"📊 Using devices from CUDA_VISIBLE_DEVICES: {devices}")
+        else:
+            # 自动检测可用的 CUDA 设备
+            try:
+                import torch
+
+                if torch.cuda.is_available():
+                    device_count = torch.cuda.device_count()
+                    devices = ",".join(str(i) for i in range(device_count))
+                    logger.info(f"📊 Auto-detected {device_count} CUDA devices: {devices}")
+                else:
+                    logger.info("📊 No CUDA devices available, using CPU mode")
+                    devices = "auto"  # 保持 auto，让 LitServe 使用 CPU
+            except Exception as e:
+                logger.warning(f"⚠️  Failed to detect CUDA devices: {e}, using CPU mode")
+                devices = "auto"
 
     # 2. 处理 devices 参数（支持逗号分隔的字符串）
     if devices != "auto":
