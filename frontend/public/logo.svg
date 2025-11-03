@@ -1,0 +1,66 @@
+<svg width="200" height="48" viewBox="0 0 200 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- 渐变色定义 - 深蓝到亮蓝的星空渐变 -->
+    <linearGradient id="starGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4F46E5;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#6366F1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#818CF8;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- 星光光晕效果 -->
+    <radialGradient id="glowGradient" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#818CF8;stop-opacity:0.4" />
+      <stop offset="100%" style="stop-color:#6366F1;stop-opacity:0" />
+    </radialGradient>
+  </defs>
+
+  <!-- 星光光晕背景 -->
+  <circle cx="24" cy="24" r="20" fill="url(#glowGradient)" />
+
+  <!-- 天枢星主体 - 北斗七星样式的主星 -->
+  <g transform="translate(24, 24)">
+    <!-- 主星核心 - 8角星 -->
+    <path d="M 0,-14 L -2.2,-4.5 L -10,-10 L -4.5,-2.2 L -14,0 L -4.5,2.2 L -10,10 L -2.2,4.5 L 0,14 L 2.2,4.5 L 10,10 L 4.5,2.2 L 14,0 L 4.5,-2.2 L 10,-10 L 2.2,-4.5 Z"
+          fill="url(#starGradient)"
+          stroke="#4F46E5"
+          stroke-width="0.5"/>
+
+    <!-- 内部亮点 -->
+    <circle cx="0" cy="0" r="2.5" fill="#FFFFFF" opacity="0.9"/>
+
+    <!-- 星芒效果 - 4个主要方向 -->
+    <g opacity="0.7">
+      <line x1="0" y1="-16" x2="0" y2="-20" stroke="#818CF8" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="0" y1="16" x2="0" y2="20" stroke="#818CF8" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="-16" y1="0" x2="-20" y2="0" stroke="#818CF8" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="16" y1="0" x2="20" y2="0" stroke="#818CF8" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+
+    <!-- 周围小星点 - 营造星空感 -->
+    <circle cx="-18" cy="-7" r="1.2" fill="#818CF8" opacity="0.8"/>
+    <circle cx="18" cy="-8" r="0.8" fill="#A5B4FC" opacity="0.7"/>
+    <circle cx="-16" cy="10" r="0.8" fill="#A5B4FC" opacity="0.6"/>
+    <circle cx="19" cy="9" r="1.2" fill="#818CF8" opacity="0.7"/>
+  </g>
+
+  <!-- Tianshu 文字 - 深邃黑色 -->
+  <text x="52" y="32"
+        font-family="'SF Pro Display', 'Segoe UI', system-ui, -apple-system, sans-serif"
+        font-size="24"
+        font-weight="700"
+        letter-spacing="-0.3"
+        fill="#111827">Tianshu</text>
+
+  <!-- 分隔竖线 - 蓝灰色 -->
+  <line x1="142" y1="16" x2="142" y2="36"
+        stroke="#9CA3AF"
+        stroke-width="2"
+        stroke-linecap="round"/>
+
+  <!-- 天枢 文字 - 中灰色 -->
+  <text x="150" y="32"
+        font-family="'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif"
+        font-size="18"
+        font-weight="500"
+        fill="#6B7280">天枢</text>
+</svg>

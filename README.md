@@ -1,6 +1,6 @@
 <div align="center">
 
-# MinerU Tianshu 天枢
+# Tianshu 天枢
 
 **企业级 AI 数据预处理平台**
 

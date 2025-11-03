@@ -1,6 +1,6 @@
 <div align="center">
 
-# MinerU Tianshu 天枢
+# Tianshu 天枢
 
 **Enterprise-grade AI Data Preprocessing Platform**
 

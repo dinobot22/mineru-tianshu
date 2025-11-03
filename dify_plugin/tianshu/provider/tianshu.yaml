@@ -1,0 +1,38 @@
+credentials_for_provider:
+  api_base_url:
+    label:
+      en_US: API Base URL
+      zh_Hans: API 服务器地址
+    placeholder:
+      en_US: Please input your Tianshu server's Base URL
+      zh_Hans: 请输入你的 Tianshu 服务的 Base URL
+    required: true
+    type: text-input
+  api_key:
+    label:
+      en_US: API Key
+      zh_Hans: API 密钥
+    placeholder:
+      en_US: Please input your Tianshu server's API Key
+      zh_Hans: 请输入你的 Tianshu 服务的 API 密钥
+    required: true
+    type: secret-input
+
+identity:
+  author: magic_yuan
+  name: tianshu
+  label:
+    en_US: Tianshu
+    zh_Hans: 天枢
+  description:
+    en_US: Tianshu is an enterprise-grade, all-in-one AI data preprocessing platform that supports converting various data types (PDF, Office documents, images, audio, video) into Markdown and JSON formats. https://github.com/magicyuan876/mineru-tianshu
+    zh_Hans: Tianshu（天枢）是一个企业级 AI 一站式数据预处理平台，支持将各种数据类型（PDF、Office 文档、图片、音频、视频）转换为 Markdown 和 JSON 格式。https://github.com/magicyuan876/mineru-tianshu
+  icon: icon.svg
+
+extra:
+  python:
+    source: provider/tianshu.py
+
+tools:
+  - tools/parse_document.yaml
+  - tools/get_task_status.yaml

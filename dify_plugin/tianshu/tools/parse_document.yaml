@@ -1,0 +1,122 @@
+identity:
+  name: parse-document
+  author: magic_yuan
+  label:
+    en_US: Parse Document
+    zh_Hans: 解析文档
+description:
+  human:
+    en_US: Submit a document parsing task and get task_id for querying results later. Supports PDF, Office documents (Word, Excel, PowerPoint), images, audio, and video files.
+    zh_Hans: 提交文档解析任务并获取task_id供后续查询结果。支持PDF、Office文档（Word、Excel、PowerPoint）、图片、音频和视频文件。
+  llm: Submit document parsing task and return task_id immediately. Use get_task_status tool to query the result.
+
+parameters:
+  - name: file
+    type: file
+    required: true
+    label:
+      en_US: File
+      zh_Hans: 文件
+    human_description:
+      en_US: The file to be parsed (support pdf, ppt, pptx, doc, docx, png, jpg, jpeg, etc.)
+      zh_Hans: 要解析的文件（支持 pdf, ppt, pptx, doc, docx, png, jpg, jpeg 等）
+    llm_description: The file to be parsed
+    form: llm
+
+  - name: backend
+    type: select
+    required: false
+    default: auto
+    label:
+      en_US: Backend
+      zh_Hans: 处理后端
+    human_description:
+      en_US: Processing backend engine
+      zh_Hans: 处理后端引擎
+    llm_description: Processing backend engine
+    form: form
+    options:
+      - value: auto
+        label:
+          en_US: Auto
+          zh_Hans: 自动
+      - value: pipeline
+        label:
+          en_US: Pipeline
+          zh_Hans: Pipeline
+      - value: deepseek-ocr
+        label:
+          en_US: Deepseek OCR
+          zh_Hans: Deepseek OCR
+      - value: paddleocr-vl
+        label:
+          en_US: PaddleOCR VL
+          zh_Hans: PaddleOCR VL
+      - value: markitdown
+        label:
+          en_US: MarkItDown
+          zh_Hans: MarkItDown
+      - value: sensevoice
+        label:
+          en_US: SenseVoice
+          zh_Hans: SenseVoice
+      - value: video
+        label:
+          en_US: Video
+          zh_Hans: 视频
+
+  - name: lang
+    type: string
+    required: false
+    default: auto
+    label:
+      en_US: Language
+      zh_Hans: 语言
+    human_description:
+      en_US: Document language (auto, ch, en, korean, japan)
+      zh_Hans: 文档语言（auto, ch, en, korean, japan）
+    llm_description: Document language
+    form: form
+    placeholder:
+      en_US: auto
+      zh_Hans: auto
+
+  - name: formula_enable
+    type: boolean
+    required: false
+    default: true
+    label:
+      en_US: Enable Formula Recognition
+      zh_Hans: 启用公式识别
+    human_description:
+      en_US: Whether to enable formula recognition
+      zh_Hans: 是否启用公式识别
+    llm_description: Enable formula recognition
+    form: form
+
+  - name: priority
+    type: number
+    required: false
+    default: 0
+    label:
+      en_US: Priority
+      zh_Hans: 优先级
+    human_description:
+      en_US: Task priority, higher number means higher priority
+      zh_Hans: 任务优先级，数字越大优先级越高
+    llm_description: Task priority
+    form: form
+
+output_schema:
+  type: object
+  properties:
+    task_id:
+      type: string
+      description: Task ID for querying results
+    message:
+      type: string
+      description: Status message
+
+extra:
+  python:
+    source: tools/parse_document.py

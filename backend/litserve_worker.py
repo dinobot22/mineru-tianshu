@@ -88,8 +88,11 @@ from loguru import logger
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from task_db import TaskDB
-from mineru.cli.common import do_parse
-from mineru.utils.model_utils import get_vram, clean_memory
+
+# 延迟导入 MinerU，避免过早初始化 CUDA
+# MinerU 会在 setup() 设置 CUDA_VISIBLE_DEVICES 后再导入
+# from mineru.cli.common import do_parse
+# from mineru.utils.model_utils import get_vram, clean_memory
 
 # 尝试导入 markitdown
 try:
@@ -217,13 +220,19 @@ class MinerUWorkerAPI(ls.LitAPI):
         self.enable_worker_loop = getattr(self.__class__, "_enable_worker_loop", True)
 
         # 为 MinerU 设置 CUDA_VISIBLE_DEVICES 环境变量
-        # MinerU 使用 PyTorch，通过环境变量控制 GPU
-        # 注意：在 LitServe 的多 worker 架构中，每个 worker 在独立的进程中运行，
-        # 所以修改环境变量是安全的，不会影响其他 worker
+        # 注意：必须在导入 MinerU 之前设置，因为 PyTorch 在首次导入时会初始化 CUDA 上下文
+        # 在 LitServe 的多 worker 架构中，每个 worker 在独立的进程中运行，所以修改环境变量是安全的
         if "cuda:" in str(device):
             gpu_id = str(device).split(":")[-1]
             os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
-            logger.info(f"🎯 Set CUDA_VISIBLE_DEVICES={gpu_id} for MinerU on device {device}")
+            logger.info(f"🎯 Set CUDA_VISIBLE_DEVICES={gpu_id} for MinerU (before import)")
+
+        # 现在可以安全地导入 MinerU 了（会使用上面设置的 GPU）
+        global do_parse, get_vram, clean_memory
+        from mineru.cli.common import do_parse
+        from mineru.utils.model_utils import get_vram, clean_memory
+
+        logger.info("📦 MinerU modules imported after CUDA_VISIBLE_DEVICES set")
 
         # 创建输出目录
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)

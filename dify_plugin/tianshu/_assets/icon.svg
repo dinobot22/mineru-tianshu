@@ -1,0 +1,13 @@
+<svg width="200" height="48" viewBox="0 0 200 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 星星图标 -->
+  <g transform="translate(8, 8)">
+    <path d="M16 2L19.09 11.26L29 11.44L21.18 17.14L24.09 26.56L16 21.14L7.91 26.56L10.82 17.14L3 11.44L12.91 11.26L16 2Z" fill="#6366F1" stroke="#6366F1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M8 8L12 16" stroke="#6366F1" stroke-width="2" stroke-linecap="round"/>
+    <path d="M24 8L20 16" stroke="#6366F1" stroke-width="2" stroke-linecap="round"/>
+    <path d="M16 24L16 32" stroke="#6366F1" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <!-- 天枢文字 -->
+  <text x="52" y="32" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="700" fill="#1F2937">Tianshu</text>
+  <text x="155" y="32" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="400" fill="#6B7280">天枢</text>
+</svg>

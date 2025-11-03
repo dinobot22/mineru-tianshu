@@ -9,8 +9,7 @@
             <!-- Logo -->
             <div class="flex-shrink-0 flex items-center">
               <router-link to="/" class="flex items-center gap-2">
-                <Sparkles class="h-8 w-8 text-primary-600" />
-                <span class="text-xl font-bold text-gray-900">MinerU Tianshu</span>
+                <img src="/logo.svg" alt="Tianshu Logo" class="h-8" />
               </router-link>
             </div>
 

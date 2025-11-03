@@ -1,0 +1,80 @@
+identity:
+  name: get-task-status
+  author: magic_yuan
+  label:
+    en_US: Get Task Status
+    zh_Hans: 查询任务状态
+description:
+  human:
+    en_US: Query the status and result of a document parsing task
+    zh_Hans: 查询文档解析任务的状态和结果
+  llm: Query task status by task_id. Returns parsed content if completed, or current status if still processing.
+
+parameters:
+  - name: task_id
+    type: string
+    required: true
+    label:
+      en_US: Task ID
+      zh_Hans: 任务 ID
+    human_description:
+      en_US: The task ID returned from parse_document tool
+      zh_Hans: 从 parse_document 工具返回的任务 ID
+    llm_description: Task ID to query
+    form: llm
+
+  - name: format
+    type: select
+    required: false
+    default: markdown
+    label:
+      en_US: Output Format
+      zh_Hans: 输出格式
+    human_description:
+      en_US: Return format (markdown, json, or both)
+      zh_Hans: 返回格式（markdown、json 或 both）
+    llm_description: Output format of the parsed content
+    form: form
+    options:
+      - value: markdown
+        label:
+          en_US: Markdown
+          zh_Hans: Markdown
+      - value: json
+        label:
+          en_US: JSON
+          zh_Hans: JSON
+      - value: both
+        label:
+          en_US: Both
+          zh_Hans: 两者都要
+
+  - name: upload_images
+    type: boolean
+    required: false
+    default: false
+    label:
+      en_US: Upload Images to MinIO
+      zh_Hans: 上传图片到 MinIO
+    human_description:
+      en_US: Whether to upload images to MinIO and replace links
+      zh_Hans: 是否上传图片到 MinIO 并替换链接
+    llm_description: Upload images to MinIO storage
+    form: form
+
+output_schema:
+  type: object
+  properties:
+    task_id:
+      type: string
+      description: Task ID
+    status:
+      type: string
+      description: Task status
+    content:
+      type: string
+      description: Parsed markdown content
+
+extra:
+  python:
+    source: tools/get_task_status.py
