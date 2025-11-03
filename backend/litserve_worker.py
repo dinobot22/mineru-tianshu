@@ -177,6 +177,16 @@ class MinerUWorkerAPI(ls.LitAPI):
         Args:
             device: 设备 ID (cuda:0, cuda:1, cpu 等)
         """
+        # ============================================================================
+        # 【关键】第一步：立即设置 CUDA_VISIBLE_DEVICES（必须在任何导入之前）
+        # ============================================================================
+        # LitServe 为每个 worker 进程分配不同的 device (cuda:0, cuda:1, ...)
+        # 我们需要在导入任何 CUDA 库之前设置环境变量，实现进程级 GPU 隔离
+        if "cuda:" in str(device):
+            gpu_id = str(device).split(":")[-1]
+            os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
+            logger.info(f"🎯 [GPU Isolation] Set CUDA_VISIBLE_DEVICES={gpu_id} (device={device})")
+
         import socket
 
         # 配置模型下载源（必须在 MinerU 初始化之前）
@@ -219,20 +229,31 @@ class MinerUWorkerAPI(ls.LitAPI):
         self.poll_interval = getattr(self.__class__, "_poll_interval", 0.5)
         self.enable_worker_loop = getattr(self.__class__, "_enable_worker_loop", True)
 
-        # 为 MinerU 设置 CUDA_VISIBLE_DEVICES 环境变量
-        # 注意：必须在导入 MinerU 之前设置，因为 PyTorch 在首次导入时会初始化 CUDA 上下文
-        # 在 LitServe 的多 worker 架构中，每个 worker 在独立的进程中运行，所以修改环境变量是安全的
-        if "cuda:" in str(device):
-            gpu_id = str(device).split(":")[-1]
-            os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
-            logger.info(f"🎯 Set CUDA_VISIBLE_DEVICES={gpu_id} for MinerU (before import)")
-
-        # 现在可以安全地导入 MinerU 了（会使用上面设置的 GPU）
+        # ============================================================================
+        # 第二步：现在可以安全地导入 MinerU 了（CUDA_VISIBLE_DEVICES 已设置）
+        # ============================================================================
         global do_parse, get_vram, clean_memory
         from mineru.cli.common import do_parse
         from mineru.utils.model_utils import get_vram, clean_memory
 
-        logger.info("📦 MinerU modules imported after CUDA_VISIBLE_DEVICES set")
+        # 验证 PyTorch CUDA 设置
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", "all")
+                device_count = torch.cuda.device_count()
+                logger.info("✅ PyTorch CUDA verified:")
+                logger.info(f"   CUDA_VISIBLE_DEVICES = {visible_devices}")
+                logger.info(f"   torch.cuda.device_count() = {device_count}")
+                if device_count == 1:
+                    logger.info(f"   ✅ SUCCESS: Process isolated to 1 GPU (physical GPU {visible_devices})")
+                else:
+                    logger.warning(f"   ⚠️  WARNING: Expected 1 GPU but found {device_count}")
+            else:
+                logger.warning("⚠️  CUDA not available")
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to verify PyTorch CUDA: {e}")
 
         # 创建输出目录
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
@@ -307,9 +328,11 @@ class MinerUWorkerAPI(ls.LitAPI):
         if WATERMARK_REMOVAL_AVAILABLE and "cuda" in str(device).lower():
             try:
                 logger.info("🎨 Initializing watermark removal engine...")
-                # PDFWatermarkHandler 只接受 device 和 use_lama 参数
-                self.watermark_handler = PDFWatermarkHandler(device=str(device), use_lama=True)
-                logger.info(f"✅ Watermark removal engine initialized on {device}")
+                # 注意：由于在 setup() 中已设置 CUDA_VISIBLE_DEVICES，
+                # 该进程只能看到一个 GPU（映射为 cuda:0）
+                self.watermark_handler = PDFWatermarkHandler(device="cuda:0", use_lama=True)
+                gpu_id = os.environ.get("CUDA_VISIBLE_DEVICES", "?")
+                logger.info(f"✅ Watermark removal engine initialized on cuda:0 (physical GPU {gpu_id})")
             except Exception as e:
                 logger.error(f"❌ Failed to initialize watermark removal engine: {e}")
                 self.watermark_handler = None
@@ -677,9 +700,11 @@ class MinerUWorkerAPI(ls.LitAPI):
         if self.paddleocr_vl_engine is None:
             from paddleocr_vl import PaddleOCRVLEngine
 
-            # 传递当前 worker 的 device 参数
-            self.paddleocr_vl_engine = PaddleOCRVLEngine(device=str(self.device))
-            logger.info(f"✅ PaddleOCR-VL engine loaded on {self.device} (singleton)")
+            # 注意：由于在 setup() 中已设置 CUDA_VISIBLE_DEVICES，
+            # 该进程只能看到一个 GPU（映射为 cuda:0）
+            self.paddleocr_vl_engine = PaddleOCRVLEngine(device="cuda:0")
+            gpu_id = os.environ.get("CUDA_VISIBLE_DEVICES", "?")
+            logger.info(f"✅ PaddleOCR-VL engine loaded on cuda:0 (physical GPU {gpu_id})")
 
         # 设置输出目录
         output_dir = Path(self.output_dir) / Path(file_path).stem
@@ -697,8 +722,11 @@ class MinerUWorkerAPI(ls.LitAPI):
         if self.sensevoice_engine is None:
             from audio_engines import SenseVoiceEngine
 
-            self.sensevoice_engine = SenseVoiceEngine(device=str(self.device))
-            logger.info(f"✅ SenseVoice engine loaded on {self.device} (singleton)")
+            # 注意：由于在 setup() 中已设置 CUDA_VISIBLE_DEVICES，
+            # 该进程只能看到一个 GPU（映射为 cuda:0）
+            self.sensevoice_engine = SenseVoiceEngine(device="cuda:0")
+            gpu_id = os.environ.get("CUDA_VISIBLE_DEVICES", "?")
+            logger.info(f"✅ SenseVoice engine loaded on cuda:0 (physical GPU {gpu_id})")
 
         # 处理音频
         result = self.sensevoice_engine.transcribe(file_path, language=options.get("lang", "auto"))
@@ -715,8 +743,11 @@ class MinerUWorkerAPI(ls.LitAPI):
         if self.video_engine is None:
             from video_engines import VideoProcessingEngine
 
-            self.video_engine = VideoProcessingEngine(device=str(self.device))
-            logger.info(f"✅ Video processing engine loaded on {self.device} (singleton)")
+            # 注意：由于在 setup() 中已设置 CUDA_VISIBLE_DEVICES，
+            # 该进程只能看到一个 GPU（映射为 cuda:0）
+            self.video_engine = VideoProcessingEngine(device="cuda:0")
+            gpu_id = os.environ.get("CUDA_VISIBLE_DEVICES", "?")
+            logger.info(f"✅ Video processing engine loaded on cuda:0 (physical GPU {gpu_id})")
 
         # 处理视频
         result = self.video_engine.process_video(
