@@ -69,8 +69,8 @@ RUN pip install paddlepaddle-gpu==3.2.0 \
     --default-timeout=600 \
     --retries 5
 
-# Step 2: 安装 PyTorch (CUDA 12.6, ~2GB)
-RUN pip install torch==2.6.0+cu126 torchvision==0.21.0+cu126 \
+# Step 2: 安装 PyTorch (CUDA 12.6, ~2GB, 包含 torchaudio for SenseVoice)
+RUN pip install torch==2.6.0+cu126 torchvision==0.21.0+cu126 torchaudio==2.6.0+cu126 \
     --index-url https://download.pytorch.org/whl/cu126 \
     --break-system-packages \
     --default-timeout=600 \

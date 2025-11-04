@@ -52,11 +52,11 @@ echo "  This may take a few minutes..."
 pip install paddlepaddle-gpu==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu126/
 echo "✓ PaddlePaddle installed"
 
-# Step 4: Install PyTorch
+# Step 4: Install PyTorch (including torchaudio for SenseVoice)
 echo ""
-echo "[Step 4/8] Installing PyTorch 2.6.0+cu126..."
+echo "[Step 4/8] Installing PyTorch 2.6.0+cu126 (with torchaudio)..."
 echo "  This may take a few minutes..."
-pip install torch==2.6.0+cu126 torchvision==0.21.0+cu126 --index-url https://download.pytorch.org/whl/cu126
+pip install torch==2.6.0+cu126 torchvision==0.21.0+cu126 torchaudio==2.6.0+cu126 --index-url https://download.pytorch.org/whl/cu126
 echo "✓ PyTorch installed"
 
 # Step 5: Install core packages separately (avoid complex resolution)
