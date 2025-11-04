@@ -742,14 +742,29 @@ class MinerUWorkerAPI(ls.LitAPI):
             gpu_id = os.environ.get("CUDA_VISIBLE_DEVICES", "?")
             logger.info(f"✅ SenseVoice engine loaded on cuda:0 (physical GPU {gpu_id})")
 
-        # 处理音频
-        result = self.sensevoice_engine.transcribe(file_path, language=options.get("lang", "auto"))
+        # 设置输出目录
+        output_dir = Path(self.output_dir) / Path(file_path).stem
+        output_dir.mkdir(parents=True, exist_ok=True)
 
-        # 保存结果
-        output_file = Path(self.output_dir) / f"{Path(file_path).stem}_transcription.txt"
-        output_file.write_text(result["text"], encoding="utf-8")
+        # 处理音频（parse 方法需要 output_path 参数）
+        result = self.sensevoice_engine.parse(
+            audio_path=file_path,
+            output_path=str(output_dir),
+            language=options.get("lang", "auto"),
+            use_itn=options.get("use_itn", True),
+        )
 
-        return {"result_path": str(output_file), "content": result["text"]}
+        # SenseVoice 返回结构：
+        # {
+        #   "success": True,
+        #   "output_path": str,
+        #   "markdown": str,
+        #   "markdown_file": str,
+        #   "json_file": str,
+        #   "json_data": dict,
+        #   "result": dict
+        # }
+        return {"result_path": str(output_dir), "content": result.get("markdown", "")}
 
     def _process_video(self, file_path: str, options: dict) -> dict:
         """使用视频处理引擎处理视频文件"""
