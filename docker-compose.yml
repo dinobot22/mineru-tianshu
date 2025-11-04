@@ -104,8 +104,8 @@ services:
     ports:
       - "${WORKER_PORT:-8001}:8001"
     volumes:
-      # 模型存储（只读）
-      - ./models:/app/models:ro
+      # 模型存储（读写，因为 SenseVoice 等引擎需要创建缓存目录和下载模型）
+      - ./models:/app/models:rw
       # 上传文件（只读）
       - ./data/uploads:/app/uploads:ro
       # 输出结果

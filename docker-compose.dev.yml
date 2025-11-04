@@ -109,8 +109,8 @@ services:
       - ./backend:/app/backend:rw
       - ./pyproject.toml:/app/pyproject.toml:ro
 
-      # 模型存储
-      - ./models:/app/models:ro
+      # 模型存储（读写，因为 SenseVoice 等引擎需要创建缓存目录和下载模型）
+      - ./models:/app/models:rw
       # 数据目录
       - ./data/uploads:/app/uploads:ro
       - ./data/output:/app/output:rw

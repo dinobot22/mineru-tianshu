@@ -64,8 +64,21 @@ class SenseVoiceEngine:
             else:
                 self.cache_dir = cache_dir
 
-            # 确保缓存目录存在
-            Path(self.cache_dir).mkdir(parents=True, exist_ok=True)
+            # 确保缓存目录存在（带错误处理）
+            try:
+                Path(self.cache_dir).mkdir(parents=True, exist_ok=True)
+            except (OSError, PermissionError) as e:
+                # 如果主缓存目录无法创建（如只读文件系统），使用临时目录
+                import tempfile
+
+                self.cache_dir = str(Path(tempfile.gettempdir()) / "sensevoice_cache")
+                logger.warning(f"⚠️  Failed to create cache directory, using temp: {self.cache_dir}")
+                logger.warning(f"   Original error: {e}")
+                try:
+                    Path(self.cache_dir).mkdir(parents=True, exist_ok=True)
+                except Exception as e2:
+                    logger.error(f"❌ Failed to create temp cache directory: {e2}")
+                    raise RuntimeError(f"Cannot create cache directory: {e2}") from e2
 
             self._initialized = True
 
