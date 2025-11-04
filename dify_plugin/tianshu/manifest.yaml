@@ -1,4 +1,4 @@
-version: 0.0.1
+version: 0.1.4
 type: plugin
 author: magic_yuan
 name: tianshu
@@ -6,8 +6,8 @@ label:
   en_US: Tianshu
   zh_Hans: 天枢
 description:
-  en_US: Tianshu is an enterprise-grade, all-in-one AI data preprocessing platform that supports converting various data types (PDF, Office documents, images, audio, video) into Markdown and JSON formats. https://github.com/magicyuan876/mineru-tianshu
-  zh_Hans: Tianshu（天枢）是一个企业级 AI 一站式数据预处理平台，支持将各种数据类型（PDF、Office 文档、图片、音频、视频）转换为 Markdown 和 JSON 格式。https://github.com/magicyuan876/mineru-tianshu
+  en_US: Tianshu is an enterprise-grade document parsing platform. Parse PDF, Office, images, audio, video to Markdown. One-click parsing with auto-polling. https://github.com/magicyuan876/mineru-tianshu
+  zh_Hans: Tianshu（天枢）企业级文档解析平台。解析 PDF、Office、图片、音频、视频为 Markdown。一键解析，自动轮询等待结果。https://github.com/magicyuan876/mineru-tianshu
 icon: icon.svg
 resource:
   memory: 268435456
@@ -21,7 +21,7 @@ plugins:
   tools:
     - provider/tianshu.yaml
 meta:
-  version: 0.0.1
+  version: 0.1.4
   arch:
     - amd64
     - arm64
@@ -29,5 +29,5 @@ meta:
     language: python
     version: "3.12"
     entrypoint: main
-created_at: 2025-10-31T10:45:55.1777917+08:00
+created_at: 2025-11-04T10:30:00.0000000+08:00
 verified: false

@@ -34,5 +34,4 @@ extra:
     source: provider/tianshu.py
 
 tools:
-  - tools/parse_document.yaml
-  - tools/get_task_status.yaml
+  - tools/parse_document_simple.yaml
