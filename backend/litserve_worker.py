@@ -702,11 +702,16 @@ class MinerUWorkerAPI(ls.LitAPI):
         # 处理文件
         result = self.markitdown.convert(file_path)
 
-        # 保存结果
-        output_file = Path(self.output_dir) / f"{Path(file_path).stem}_markitdown.md"
+        # 创建输出目录（与其他引擎保持一致）
+        output_dir = Path(self.output_dir) / Path(file_path).stem
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # 保存结果到目录中
+        output_file = output_dir / f"{Path(file_path).stem}_markitdown.md"
         output_file.write_text(result.text_content, encoding="utf-8")
 
-        return {"result_path": str(output_file), "content": result.text_content}
+        # 返回目录路径（与其他引擎保持一致）
+        return {"result_path": str(output_dir), "content": result.text_content}
 
     def _process_with_paddleocr_vl(self, file_path: str, options: dict) -> dict:
         """使用 PaddleOCR-VL 处理图片或 PDF"""
