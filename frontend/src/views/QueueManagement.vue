@@ -96,12 +96,12 @@
             </button>
           </div>
 
-          <!-- 清理旧任务文件 -->
+          <!-- 清理旧任务 -->
           <div class="flex items-start justify-between p-4 bg-gray-50 rounded-lg">
             <div class="flex-1">
-              <h3 class="text-sm font-medium text-gray-900">清理旧任务文件</h3>
+              <h3 class="text-sm font-medium text-gray-900">清理旧任务</h3>
               <p class="mt-1 text-sm text-gray-600">
-                清理 N 天前的任务结果文件（保留数据库记录）
+                清理 N 天前的任务（同时删除结果文件和数据库记录）
               </p>
               <div class="mt-2">
                 <label class="text-xs text-gray-500">保留天数:</label>
@@ -120,7 +120,7 @@
               class="btn btn-secondary flex items-center"
             >
               <Trash2 :class="{ 'animate-pulse': cleaningFiles }" class="w-4 h-4 mr-2" />
-              {{ cleaningFiles ? '清理中...' : '清理文件' }}
+              {{ cleaningFiles ? '清理中...' : '清理任务' }}
             </button>
           </div>
 
@@ -275,14 +275,14 @@ async function handleResetStale() {
 }
 
 async function handleCleanupFiles() {
-  confirmDialog.title = '确认清理文件'
-  confirmDialog.message = `将删除 ${cleanupFileDays.value} 天前的任务结果文件（保留数据库记录）。此操作不可恢复，确定继续吗？`
+  confirmDialog.title = '确认清理旧任务'
+  confirmDialog.message = `将彻底删除 ${cleanupFileDays.value} 天前的任务（包括结果文件和数据库记录）。此操作不可恢复，确定继续吗？`
   confirmDialog.type = 'danger'
   confirmDialog.onConfirm = async () => {
     cleaningFiles.value = true
     try {
       const response = await queueStore.cleanupOldTasks(cleanupFileDays.value)
-      addLog('success', `成功清理 ${response.deleted_count || 0} 个旧任务文件`)
+      addLog('success', `成功清理 ${response.deleted_count || 0} 个旧任务`)
     } catch (err: any) {
       addLog('error', `清理失败: ${err.message}`)
     } finally {

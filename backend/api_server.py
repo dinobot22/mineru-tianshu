@@ -512,15 +512,21 @@ async def cleanup_old_tasks(
     current_user: User = Depends(require_permission(Permission.QUEUE_MANAGE)),
 ):
     """
-    清理旧任务记录（管理接口）
+    清理旧任务（管理接口）
+
+    同时删除任务的结果文件和数据库记录。
 
     需要管理员权限。
     """
-    deleted_count = db.cleanup_old_tasks(days)
+    deleted_count = db.cleanup_old_task_records(days)
 
-    logger.info(f"🧹 Cleaned up {deleted_count} old tasks by {current_user.username}")
+    logger.info(f"🧹 Cleaned up {deleted_count} old tasks (files and records) by {current_user.username}")
 
-    return {"success": True, "deleted_count": deleted_count, "message": f"Cleaned up tasks older than {days} days"}
+    return {
+        "success": True,
+        "deleted_count": deleted_count,
+        "message": f"Cleaned up {deleted_count} tasks older than {days} days (files and records deleted)",
+    }
 
 
 @app.post("/api/v1/admin/reset-stale")
