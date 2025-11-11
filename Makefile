@@ -16,7 +16,8 @@ ifeq ($(OS),Windows_NT)
 else
     DETECTED_OS := $(shell uname -s)
     # 尝试使用 docker compose (新版本) 否则使用 docker-compose
-    COMPOSE_CMD := $(shell command -v docker 2>/dev/null && docker compose version 2>/dev/null && echo "docker compose" || echo "docker-compose")
+    # 优先检测 docker compose 子命令，失败则回退到 docker-compose
+    COMPOSE_CMD := $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || (command -v docker-compose >/dev/null 2>&1 && echo "docker-compose" || echo "docker-compose"))
 endif
 
 # 颜色输出
