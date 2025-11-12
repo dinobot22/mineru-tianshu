@@ -88,6 +88,7 @@ from loguru import logger
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from task_db import TaskDB
+from output_normalizer import normalize_output
 
 # 延迟导入 MinerU，避免过早初始化 CUDA
 # MinerU 会在 setup() 设置 CUDA_VISIBLE_DEVICES 后再导入
@@ -686,6 +687,9 @@ class MinerUWorkerAPI(ls.LitAPI):
             else:
                 logger.info("ℹ️  No JSON output found (MinerU may not generate it by default)")
 
+            # 规范化输出（统一文件名和目录结构）
+            normalize_output(actual_output_dir)
+
             return result
         else:
             # 如果找不到 md 文件，列出输出目录内容以便调试
@@ -710,6 +714,9 @@ class MinerUWorkerAPI(ls.LitAPI):
         output_file = output_dir / f"{Path(file_path).stem}_markitdown.md"
         output_file.write_text(result.text_content, encoding="utf-8")
 
+        # 规范化输出（统一文件名和目录结构）
+        normalize_output(output_dir)
+
         # 返回目录路径（与其他引擎保持一致）
         return {"result_path": str(output_dir), "content": result.text_content}
 
@@ -731,6 +738,9 @@ class MinerUWorkerAPI(ls.LitAPI):
 
         # 处理文件（parse 方法需要 output_path）
         result = self.paddleocr_vl_engine.parse(file_path, output_path=str(output_dir))
+
+        # 规范化输出（统一文件名和目录结构）
+        normalize_output(output_dir)
 
         # 返回结果
         return {"result_path": str(output_dir), "content": result.get("markdown", "")}
@@ -759,6 +769,9 @@ class MinerUWorkerAPI(ls.LitAPI):
             use_itn=options.get("use_itn", True),
         )
 
+        # 规范化输出（统一文件名和目录结构）
+        normalize_output(output_dir)
+
         # SenseVoice 返回结构：
         # {
         #   "success": True,
@@ -783,6 +796,10 @@ class MinerUWorkerAPI(ls.LitAPI):
             gpu_id = os.environ.get("CUDA_VISIBLE_DEVICES", "?")
             logger.info(f"✅ Video processing engine loaded on cuda:0 (physical GPU {gpu_id})")
 
+        # 创建输出目录（与其他引擎保持一致）
+        output_dir = Path(self.output_dir) / Path(file_path).stem
+        output_dir.mkdir(parents=True, exist_ok=True)
+
         # 处理视频
         result = self.video_engine.process_video(
             video_path=file_path,
@@ -793,10 +810,13 @@ class MinerUWorkerAPI(ls.LitAPI):
         )
 
         # 保存结果（Markdown 格式）
-        output_file = Path(self.output_dir) / f"{Path(file_path).stem}_video_analysis.md"
+        output_file = output_dir / f"{Path(file_path).stem}_video_analysis.md"
         output_file.write_text(result["markdown"], encoding="utf-8")
 
-        return {"result_path": str(output_file), "content": result["markdown"]}
+        # 规范化输出（统一文件名和目录结构）
+        normalize_output(output_dir)
+
+        return {"result_path": str(output_dir), "content": result["markdown"]}
 
     def _preprocess_remove_watermark(self, file_path: str, options: dict) -> Path:
         """
@@ -919,6 +939,10 @@ class MinerUWorkerAPI(ls.LitAPI):
         backup_json_file.write_text(json.dumps(result["json_content"], indent=2, ensure_ascii=False), encoding="utf-8")
         logger.info(f"📄 Backup JSON saved: {backup_json_file.name}")
 
+        # 规范化输出（统一文件名和目录结构）
+        # Format Engine 已经输出标准格式，但仍然调用规范化器以确保一致性
+        normalize_output(output_dir)
+
         return {
             "result_path": str(output_dir),  # 返回任务专属目录
             "content": result["content"],
@@ -1035,7 +1059,7 @@ def start_litserve_workers(
     accelerator="auto",
     devices="auto",
     workers_per_device=1,
-    port=9000,
+    port=8001,
     poll_interval=0.5,
     enable_worker_loop=True,
 ):
@@ -1124,7 +1148,7 @@ if __name__ == "__main__":
         default=None,
         help="Output directory for processed files (default: from OUTPUT_PATH env or /app/output)",
     )
-    parser.add_argument("--port", type=int, default=9000, help="Server port (default: 9000)")
+    parser.add_argument("--port", type=int, default=8001, help="Server port (default: 8001, or from WORKER_PORT env)")
     parser.add_argument(
         "--accelerator",
         type=str,
@@ -1192,16 +1216,16 @@ if __name__ == "__main__":
             except ValueError:
                 logger.warning(f"⚠️  Invalid WORKER_GPUS value: {env_workers}, using default: 1")
 
-    # 4. 如果没有通过命令行指定 port，尝试从环境变量 PORT 读取
+    # 4. 如果没有通过命令行指定 port，尝试从环境变量 WORKER_PORT 读取
     port = args.port
-    if args.port == 9000:  # 默认值
-        env_port = os.getenv("PORT")
-        if env_port:
-            try:
-                port = int(env_port)
-                logger.info(f"📊 Using port from PORT env: {port}")
-            except ValueError:
-                logger.warning(f"⚠️  Invalid PORT value: {env_port}, using default: 9000")
+    if args.port == 8001:  # 默认值
+        env_port = os.getenv("WORKER_PORT", "8001")
+        try:
+            port = int(env_port)
+            logger.info(f"📊 Using port from WORKER_PORT env: {port}")
+        except ValueError:
+            logger.warning(f"⚠️  Invalid WORKER_PORT value: {env_port}, using default: 8001")
+            port = 8001
 
     start_litserve_workers(
         output_dir=args.output_dir,

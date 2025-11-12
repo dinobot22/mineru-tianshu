@@ -692,7 +692,7 @@ async def main():
 
     # 从环境变量读取配置
     host = os.getenv("MCP_HOST", "0.0.0.0")
-    port = int(os.getenv("MCP_PORT", "8001"))
+    port = int(os.getenv("MCP_PORT", "8002"))
 
     logger.info(f"🌐 MCP Server listening on http://{host}:{port}")
     logger.info(f"📡 SSE endpoint: http://{host}:{port}/sse")

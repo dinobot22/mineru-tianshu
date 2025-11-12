@@ -44,6 +44,12 @@ English | [简体中文](./README.md)
 
 ## 📝 Latest Updates
 
+### 2025-11-12 📦 Code Optimization & Documentation Cleanup
+
+- ✅ **Output Standardization**: Unified Markdown/JSON output format, optimized image path handling
+- ✅ **Documentation Cleanup**: Streamlined README, removed redundant documentation files, kept project clean
+- ✅ **Code Quality**: Improved error handling, enhanced logging, increased system stability
+
 ### 2025-10-30 🐳 Docker Deployment + Enterprise Authentication
 
 - ✅ **Docker Containerization Support**
@@ -146,55 +152,14 @@ English | [简体中文](./README.md)
 
 ## 🌟 Introduction
 
-MinerU Tianshu is an **Enterprise-grade AI Data Preprocessing Platform** that converts various unstructured data into AI-ready structured formats:
+MinerU Tianshu is an **Enterprise-grade AI Data Preprocessing Platform** that converts unstructured data into AI-ready structured formats:
 
-- **📄 Document Processing**: PDF, Word, Excel, PPT → Markdown/JSON
-  - MinerU Pipeline (complete parsing), PaddleOCR-VL (109+ languages)
-  - **🧪 Watermark Removal (Experimental)**: YOLO11x + LaMa intelligent detection and removal
-
-- **🎬 Video Processing**: MP4, AVI, MKV, MOV → Speech Transcription + Keyframe OCR
-  - Video audio extraction (FFmpeg) + speech recognition (SenseVoice)
-  - **🧪 Keyframe OCR (Experimental)**: Scene detection + quality filtering + image deduplication + OCR
-  - Multi-language support, speaker diarization, emotion recognition
-
-- **🎙️ Audio Processing**: MP3, WAV, M4A → Transcription + Speaker Diarization
-  - SenseVoice engine with multi-language support, emotion recognition, event detection
-
-- **🖼️ Image Processing**: JPG, PNG → Text extraction + Structuring
-  - Multiple OCR engines available with GPU acceleration
-  - **🧪 Watermark Removal Preprocessing (Experimental)**: Intelligent watermark detection and auto-removal
-
-- **🏗️ Enterprise Features**:
-  - GPU load balancing, task queue, priority management, automatic retry
-  - MCP protocol support for direct integration with AI assistants (Claude Desktop, etc.)
-  - Modern web interface for easy management and monitoring
-
-## ✨ Key Features
-
-<table>
-  <tr>
-    <td align="center" width="25%">
-      <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Desktop%20Computer.png" width="60"/><br/>
-      <strong>Modern UI</strong><br/>
-      <sub>Vue 3 + TypeScript + TailwindCSS</sub>
-    </td>
-    <td align="center" width="25%">
-      <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Electric%20Plug.png" width="60"/><br/>
-      <strong>GPU Acceleration</strong><br/>
-      <sub>LitServe Load Balancing + Multi-GPU Isolation</sub>
-    </td>
-    <td align="center" width="25%">
-      <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Memo.png" width="60"/><br/>
-      <strong>Multi-modal Processing</strong><br/>
-      <sub>Documents/Images/Audio → Structured Data</sub>
-    </td>
-    <td align="center" width="25%">
-      <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Link.png" width="60"/><br/>
-      <strong>MCP Protocol</strong><br/>
-      <sub>Seamless AI Assistant Integration</sub>
-    </td>
-  </tr>
-</table>
+- **📄 Documents**: PDF, Word, Excel, PPT → Markdown/JSON (MinerU, PaddleOCR-VL 109+ languages, Watermark Removal🧪)
+- **🎬 Videos**: MP4, AVI, MKV → Speech Transcription + Keyframe OCR🧪 (FFmpeg + SenseVoice)
+- **🎙️ Audio**: MP3, WAV, M4A → Transcription + Speaker Diarization (SenseVoice Multi-language)
+- **🖼️ Images**: JPG, PNG → Text Extraction + Structuring (Multiple OCR Engines + Watermark Removal🧪)
+- **🧬 Bio Formats**: FASTA, GenBank → Markdown/JSON (Plugin-based Engines, Extensible)
+- **🏗️ Enterprise**: GPU Load Balancing, Task Queue, JWT Auth, MCP Protocol, Modern Web UI
 
 ## 📸 Screenshots
 
@@ -226,230 +191,103 @@ MinerU Tianshu is an **Enterprise-grade AI Data Preprocessing Platform** that co
 
 ### Main Features
 
-- ✅ **User Authentication**: JWT-based secure authentication, role-based access control
-- ✅ **Dashboard**: Real-time monitoring of queue statistics and recent tasks
-- ✅ **Task Submission**: Drag-and-drop file upload, batch processing, and advanced configuration
-- ✅ **Task Details**: Real-time status tracking, Markdown/JSON preview, automatic polling updates
-- ✅ **Task List**: Filtering, searching, pagination, batch operations
-- ✅ **Queue Management**: System monitoring, reset timeout tasks, clean up old files
-- ✅ **User Management**: Admin panel for user management, API key generation
-- ✅ **MCP Protocol Support**: AI assistant integration via Model Context Protocol
-- ✅ **Docker Support**: One-click deployment with complete containerization
+- ✅ **User Auth**: JWT authentication, role-based access, API key management
+- ✅ **Task Management**: Drag-drop upload, batch processing, real-time tracking, Markdown/JSON preview
+- ✅ **Queue Management**: System monitoring, timeout reset, file cleanup
+- ✅ **MCP Protocol**: Seamless AI assistant (Claude Desktop) integration
+- ✅ **Docker Deployment**: One-click deployment, GPU support, full containerization
 
 ### Supported File Formats
 
-- 📄 **PDF and Images** - Two GPU-accelerated engines available
-  - **MinerU**: Complete document parsing with table and formula recognition
-  - **PaddleOCR-VL**: Multi-language OCR (109+ languages), auto orientation and layout analysis
-- 📊 **Office Documents** - Word, Excel, PowerPoint (using MarkItDown)
-- 🌐 **Web and Text** - HTML, Markdown, TXT, CSV, etc.
-- 🎙️ **Audio Files** - MP3, WAV, M4A, FLAC, etc. (using SenseVoice)
-  - Multi-language recognition (Chinese/English/Japanese/Korean/Cantonese)
-  - Speaker diarization and separation
-  - Emotion recognition (Neutral/Happy/Angry/Sad)
-  - Output in JSON and Markdown formats
-- 🎬 **Video Files** - MP4, AVI, MKV, MOV, WebM, etc.
-  - Audio transcription from video (FFmpeg + SenseVoice)
-  - Keyframe OCR (🧪 Experimental)
-- 🧬 **Bioinformatics Formats** - FASTA, GenBank (using plugin-based format engines)
-  - **FASTA**: DNA/RNA/Protein sequence parsing
-  - **GenBank**: NCBI gene sequence annotation format
-  - Sequence statistics, base composition analysis, GC content calculation
+- 📄 **Documents**: PDF, Word, Excel, PPT (MinerU, PaddleOCR-VL, MarkItDown)
+- 🖼️ **Images**: JPG, PNG, BMP, TIFF (MinerU, PaddleOCR-VL, DeepSeek OCR)
+- 🎙️ **Audio**: MP3, WAV, M4A, FLAC (SenseVoice multi-language, speaker diarization, emotion recognition)
+- 🎬 **Video**: MP4, AVI, MKV, MOV, WebM (audio transcription + keyframe OCR🧪)
+- 🧬 **Bio Formats**: FASTA, GenBank (sequence statistics, base analysis, GC content)
+- 🌐 **Others**: HTML, Markdown, TXT, CSV
 
 ## 🏗️ Project Structure
 
 ```
 mineru-server/
-├── frontend/               # Vue 3 frontend project
-│   ├── src/
-│   │   ├── api/           # API interface layer
-│   │   ├── components/    # Common components
-│   │   ├── layouts/       # Layout components
-│   │   ├── views/         # Page components
-│   │   ├── stores/        # Pinia state management
-│   │   ├── router/        # Vue Router
-│   │   └── utils/         # Utility functions
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── README.md          # Frontend documentation
+├── frontend/              # Vue 3 Frontend (TypeScript + TailwindCSS)
+│   ├── src/               # Source (api, components, views, stores, router)
+│   └── vite.config.ts
 │
-├── backend/                # Python backend project
-│   ├── api_server.py      # FastAPI server
-│   ├── task_db.py         # Database management
-│   ├── auth/              # Authentication & Authorization
-│   │   ├── jwt_handler.py       # JWT token handling
-│   │   ├── models.py            # User data models
-│   │   ├── routes.py            # Auth routes
-│   │   ├── dependencies.py      # Dependency injection
-│   │   └── sso.py               # SSO support (optional)
-│   ├── audio_engines/     # Audio processing engines
-│   │   ├── sensevoice_engine.py  # SenseVoice engine
-│   │   └── README.md      # Audio engine documentation
-│   ├── format_engines/    # Format engines (professional formats)
-│   │   ├── base.py        # Base format engine
-│   │   ├── fasta_engine.py      # FASTA format engine
-│   │   ├── genbank_engine.py    # GenBank format engine
-│   │   └── README.md      # Format engine documentation
-│   ├── video_engines/     # Video processing engines
-│   │   ├── video_engine.py      # Video processing engine
-│   │   ├── keyframe_extractor.py # Keyframe extraction
-│   │   └── README.md      # Video engine documentation
-│   ├── remove_watermark/  # Watermark removal module
-│   │   ├── watermark_remover.py     # Watermark remover
-│   │   ├── pdf_watermark_handler.py # PDF watermark handling
-│   │   └── README.md      # Watermark removal documentation
-│   ├── litserve_worker.py # Worker Pool
-│   ├── task_scheduler.py  # Task scheduler
-│   ├── mcp_server.py      # MCP Protocol server (optional)
-│   ├── start_all.py       # Startup script
-│   ├── Dockerfile         # Docker image build file
-│   ├── requirements.txt
-│   ├── README.md          # Backend documentation
-│   └── MCP_GUIDE.md       # MCP integration guide
+├── backend/               # Python Backend (FastAPI + LitServe)
+│   ├── api_server.py      # API Server
+│   ├── litserve_worker.py # GPU Worker Pool
+│   ├── mcp_server.py      # MCP Protocol Server
+│   ├── auth/              # Authentication (JWT, SSO)
+│   ├── audio_engines/     # Audio Engine (SenseVoice)
+│   ├── video_engines/     # Video Engine (FFmpeg + OCR)
+│   ├── format_engines/    # Format Engines (FASTA, GenBank)
+│   ├── remove_watermark/  # Watermark Removal (YOLO11x + LaMa)
+│   └── requirements.txt
 │
-├── scripts/               # Deployment and utility scripts
-│   ├── docker-setup.sh          # Linux/Mac Docker deployment script
-│   ├── docker-setup.bat         # Windows Docker deployment script
-│   ├── docker-entrypoint.sh     # Docker container entrypoint
-│   ├── docker-commands.sh       # Docker command reference
-│   └── DOCKER_QUICK_START.txt   # Docker quick start guide
+├── scripts/               # Deployment Scripts
+│   ├── docker-setup.sh    # Linux/Mac Deployment
+│   └── docker-setup.bat   # Windows Deployment
 │
-├── docker-compose.yml     # Docker Compose production config
-├── docker-compose.dev.yml # Docker Compose development config
-├── Makefile               # Docker shortcuts (make setup/start/stop)
-├── .dockerignore          # Docker build ignore file
-├── .env.example           # Environment variables template
-├── mcp_config.example.json # MCP configuration example
-└── README.md              # This file
+├── docker-compose.yml     # Docker Orchestration
+└── Makefile               # Shortcuts
 ```
 
 ## 🚀 Quick Start
 
-Tianshu offers **two deployment options**:
+### Option 1: Docker Deployment (⭐ Recommended)
 
-### Option 1: Docker Deployment (⭐ Recommended for Enterprise Production)
-
-**Use Case**: Production deployment, team collaboration, containerization and service orchestration
-
-#### Prerequisites
-
-- **Docker** 20.10+
-- **Docker Compose** 2.0+
-- **NVIDIA Container Toolkit** (for GPU support, optional)
-- 16GB+ RAM
-- 50GB+ available disk space
-
-#### One-Click Deployment
+**Prerequisites**: Docker 20.10+, Docker Compose 2.0+, NVIDIA Container Toolkit (GPU optional)
 
 ```bash
-# Using Makefile (recommended)
+# One-click deployment
 make setup
 
-# Or using deployment scripts
-# Linux/Mac
-./scripts/docker-setup.sh
+# Or use scripts
+./scripts/docker-setup.sh    # Linux/Mac
+scripts\docker-setup.bat     # Windows
 
-# Windows
-scripts\docker-setup.bat
+# Common commands
+make start    # Start services
+make stop     # Stop services
+make logs     # View logs
 ```
 
-#### Common Commands
-
-```bash
-make start      # Start services
-make stop       # Stop services
-make logs       # View logs
-make status     # Check status
-make dev        # Start development environment
-```
-
-#### Service Access
-
-- Frontend: <http://localhost:80>
-- API Docs: <http://localhost:8000/docs>
-- Worker: <http://localhost:8001>
-- MCP: <http://localhost:8002>
-
-**Detailed Documentation**: See `scripts/DOCKER_QUICK_START.txt`
+**Service Access**:
+- Frontend: http://localhost:80
+- API Docs: http://localhost:8000/docs
+- Worker: http://localhost:8001
+- MCP: http://localhost:8002
 
 ---
 
-### Option 2: Local Development Deployment
+### Option 2: Local Development
 
-**Use Case**: Quick testing, local development, learning and research
+**Prerequisites**: Node.js 18+, Python 3.8+, CUDA (optional)
 
-#### Prerequisites
-
-- **Node.js** 18+ (frontend)
-- **Python** 3.8+ (backend)
-- **CUDA** (optional, for GPU acceleration)
-
-### Environment Setup (Recommended)
-
-**It is recommended to use the automated installation script**, which will automatically detect your system environment and install all dependencies:
+**1. Install Dependencies**
 
 ```bash
-# Navigate to backend directory
 cd backend
-
-# Linux/macOS
-bash install.sh
-
-# Windows
-powershell -ExecutionPolicy Bypass -File install.ps1
+bash install.sh              # Linux/macOS auto-install
+# or pip install -r requirements.txt
 ```
 
-The installation script will automatically:
-
-- ✅ Check Python version
-- ✅ Install system dependencies (libgomp1, ffmpeg, etc.)
-- ✅ Install Python dependencies (MinerU, FunASR, OCR engines, etc.)
-- ✅ Verify environment configuration
-
-If automatic installation fails, you can manually install dependencies:
+**2. Start Backend**
 
 ```bash
-pip install -r requirements.txt
-```
-
-### 1. Start Backend Services
-
-```bash
-# Navigate to backend directory (skip if already there)
 cd backend
-
-# Start all services with one command
-python start_all.py
-
-# Enable MCP protocol support (for AI assistant integration)
-python start_all.py --enable-mcp
+python start_all.py          # Start all services
+python start_all.py --enable-mcp  # Enable MCP protocol
 ```
 
-Backend services will start on the following ports:
-
-- API Server: <http://localhost:8000>
-- API Documentation: <http://localhost:8000/docs>
-- Worker Pool: <http://localhost:9000>
-- MCP Server: <http://localhost:8001> (if enabled)
-
-### 2. Start Frontend Service
+**3. Start Frontend**
 
 ```bash
-# Navigate to frontend directory
 cd frontend
-
-# Install dependencies
 npm install
-
-# Start development server
-npm run dev
+npm run dev                  # http://localhost:3000
 ```
-
-Frontend service will start at <http://localhost:3000>
-
-### 3. Access the Application
-
-Open your browser and visit <http://localhost:3000>
 
 ## 📖 Usage Guide
 
@@ -547,7 +385,7 @@ cd backend
 python start_all.py --enable-mcp
 ```
 
-After startup, MCP Server will run at `http://localhost:8001/mcp`.
+After startup, MCP Server will run at `http://localhost:8002/mcp`.
 
 **2. Configure Claude Desktop**
 
@@ -563,7 +401,7 @@ Add the following content:
 {
   "mcpServers": {
     "mineru-tianshu": {
-      "url": "http://localhost:8001/mcp/sse",
+      "url": "http://localhost:8002/sse",
       "transport": "sse"
     }
   }
@@ -576,7 +414,7 @@ Add the following content:
 {
   "mcpServers": {
     "mineru-tianshu": {
-      "url": "http://your-server-ip:8001/mcp/sse",
+      "url": "http://your-server-ip:8002/sse",
       "transport": "sse"
     }
   }
@@ -641,12 +479,12 @@ MinerU / MarkItDown
 
 **Q: MCP Server won't start?**
 
-- Check if port 8001 is occupied
+- Check if port 8002 is occupied
 - Use `--mcp-port` to specify another port
 
 **Q: Claude Desktop cannot connect?**
 
-1. Confirm MCP Server is running: `curl http://localhost:8001/mcp/sse`
+1. Confirm MCP Server is running: `curl http://localhost:8002/health`
 2. Check if configuration file JSON format is correct
 3. Restart Claude Desktop
 

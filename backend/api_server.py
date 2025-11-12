@@ -9,7 +9,7 @@ MinerU Tianshu - API Server
 """
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from loguru import logger
@@ -19,6 +19,7 @@ from datetime import datetime
 import os
 import re
 import uuid
+from urllib.parse import quote
 from minio import Minio
 
 from task_db import TaskDB
@@ -90,66 +91,138 @@ def get_minio_client():
     )
 
 
-def process_markdown_images(md_content: str, image_dir: Path, upload_images: bool = False):
+def process_markdown_images(md_content: str, image_dir: Path, result_path: str, upload_images: bool = False):
     """
     处理 Markdown 中的图片引用
 
+    将相对路径转换为可访问的 URL（静态文件服务或 MinIO）
+    支持两种格式：
+    1. Markdown 语法：![alt](path)
+    2. HTML 标签：<img src="path" ...>
+
     Args:
         md_content: Markdown 内容
-        image_dir: 图片所在目录
+        image_dir: 图片所在目录（绝对路径，Worker 已规范化为 images/）
+        result_path: 任务结果路径（从数据库获取，例如: /app/output/{file_stem}）
         upload_images: 是否上传图片到 MinIO 并替换链接
 
     Returns:
         处理后的 Markdown 内容
     """
-    if not upload_images:
-        return md_content
 
-    try:
-        minio_client = get_minio_client()
-        bucket_name = MINIO_CONFIG["bucket_name"]
-        minio_endpoint = MINIO_CONFIG["endpoint"]
+    def process_image_path(image_path: str, alt_text: str = "Image") -> tuple[str, str]:
+        """
+        处理图片路径，返回 (新路径, 格式类型)
 
-        # 查找所有 markdown 格式的图片
-        img_pattern = r"!\[([^\]]*)\]\(([^)]+)\)"
+        Returns:
+            (new_url, format_type)  format_type: 'markdown' 或 'html'
+        """
+        # 提取图片文件名
+        image_filename = Path(image_path).name
 
-        def replace_image(match):
-            alt_text = match.group(1)
-            image_path = match.group(2)
+        # 构建完整的本地图片路径
+        full_image_path = image_dir / image_filename
 
-            # 构建完整的本地图片路径
-            full_image_path = image_dir / Path(image_path).name
+        logger.debug(f"🔍 Processing image: {image_path} -> {full_image_path}")
 
-            if full_image_path.exists():
+        if not full_image_path.exists():
+            logger.warning(f"⚠️  Image not found: {full_image_path}")
+            return None, None
+
+        # 如果需要上传到 MinIO
+        if upload_images:
+            try:
+                minio_client = get_minio_client()
+                bucket_name = MINIO_CONFIG["bucket_name"]
+                minio_endpoint = MINIO_CONFIG["endpoint"]
+
                 # 获取文件后缀
                 file_extension = full_image_path.suffix
                 # 生成 UUID 作为新文件名
                 new_filename = f"{uuid.uuid4()}{file_extension}"
 
-                try:
-                    # 上传到 MinIO
-                    object_name = f"images/{new_filename}"
-                    minio_client.fput_object(bucket_name, object_name, str(full_image_path))
+                # 上传到 MinIO
+                object_name = f"images/{new_filename}"
+                minio_client.fput_object(bucket_name, object_name, str(full_image_path))
 
-                    # 生成 MinIO 访问 URL
-                    scheme = "https" if MINIO_CONFIG["secure"] else "http"
-                    minio_url = f"{scheme}://{minio_endpoint}/{bucket_name}/{object_name}"
+                # 生成 MinIO 访问 URL
+                scheme = "https" if MINIO_CONFIG["secure"] else "http"
+                minio_url = f"{scheme}://{minio_endpoint}/{bucket_name}/{object_name}"
 
-                    # 返回 HTML 格式的 img 标签
-                    return f'<img src="{minio_url}" alt="{alt_text}">'
-                except Exception as e:
-                    logger.error(f"Failed to upload image to MinIO: {e}")
-                    return match.group(0)  # 上传失败，保持原样
+                logger.info(f"✅ Uploaded to MinIO: {object_name}")
+                return minio_url, "html"
+            except Exception as e:
+                logger.error(f"❌ Failed to upload image to MinIO: {e}")
+                # 上传失败，继续使用本地静态文件服务
 
-            return match.group(0)
+        # 使用本地静态文件服务
+        # result_path 格式: /app/output/{file_stem}
+        # Worker 已规范化图片目录为: images/
+        # 需要转换为: /api/v1/files/output/{file_stem}/images/xxx.jpg
+        try:
+            # 直接使用字符串替换，避免 Path 对象的编码问题
+            output_dir_str = str(OUTPUT_DIR).replace("\\", "/")  # 统一使用正斜杠
+            result_path_str = result_path.replace("\\", "/")
 
+            if result_path_str.startswith(output_dir_str):
+                # 提取相对路径
+                relative_path = result_path_str[len(output_dir_str) :].lstrip("/")
+                # 对路径进行 URL 编码（safe='/' 保留斜杠）
+                encoded_relative_path = quote(relative_path, safe="/")
+                # 对图片文件名进行 URL 编码
+                encoded_image_filename = quote(image_filename, safe="/")
+                # 构建 API 文件访问 URL（图片目录已规范化为 images/）
+                static_url = f"/api/v1/files/output/{encoded_relative_path}/images/{encoded_image_filename}"
+            else:
+                # 如果路径不匹配，尝试直接拼接
+                logger.warning(f"⚠️  result_path doesn't start with OUTPUT_DIR: {result_path}")
+                encoded_image_filename = quote(image_filename, safe="/")
+                static_url = f"/api/v1/files/output/images/{encoded_image_filename}"
+
+            logger.debug(f"📸 Image URL: {static_url}")
+            return static_url, "markdown"
+        except Exception as e:
+            logger.error(f"❌ Failed to generate static URL: {e}")
+            return None, None
+
+    # 1. 处理 Markdown 格式的图片：![alt](path)
+    md_img_pattern = r"!\[([^\]]*)\]\(([^)]+)\)"
+
+    def replace_md_image(match):
+        alt_text = match.group(1)
+        image_path = match.group(2)
+
+        new_url, _ = process_image_path(image_path, alt_text)
+        if new_url:
+            return f"![{alt_text}]({new_url})"
+        return match.group(0)
+
+    # 2. 处理 HTML img 标签：<img src="path" ...>
+    html_img_pattern = r'<img\s+([^>]*\s+)?src="([^"]+)"([^>]*)>'
+
+    def replace_html_image(match):
+        before_src = match.group(1) or ""
+        image_path = match.group(2)
+        after_src = match.group(3) or ""
+
+        # 尝试提取 alt 属性
+        alt_match = re.search(r'alt="([^"]*)"', before_src + after_src)
+        alt_text = alt_match.group(1) if alt_match else "Image"
+
+        new_url, format_type = process_image_path(image_path, alt_text)
+        if new_url:
+            # 保持 HTML 格式
+            return f'<img {before_src}src="{new_url}"{after_src}>'
+        return match.group(0)
+
+    try:
         # 替换所有图片引用
-        new_content = re.sub(img_pattern, replace_image, md_content)
+        new_content = re.sub(md_img_pattern, replace_md_image, md_content)
+        new_content = re.sub(html_img_pattern, replace_html_image, new_content)
         return new_content
-
     except Exception as e:
-        logger.error(f"Error processing markdown images: {e}")
-        return md_content  # 出错时返回原内容
+        logger.error(f"❌ Failed to process images: {e}")
+        return md_content
 
 
 @app.get("/")
@@ -335,27 +408,63 @@ async def get_task_status(
 
                     # 根据 format 参数决定返回内容
                     if format in ["markdown", "both"]:
-                        # 读取 Markdown 内容
-                        md_file = md_files[0]
-                        logger.info(f"📖 Reading markdown file: {md_file}")
-                        with open(md_file, "r", encoding="utf-8") as f:
-                            md_content = f.read()
+                        # 选择主 Markdown 文件（优先 result.md）
+                        md_file = None
+                        for f in md_files:
+                            if f.name == "result.md":
+                                md_file = f
+                                break
+                        if not md_file:
+                            md_file = md_files[0]
 
-                        logger.info(f"✅ Markdown content loaded, length: {len(md_content)} characters")
-
-                        # 查找图片目录（在 markdown 文件的同级目录下）
+                        # 查找图片目录（Worker 已规范化为 images/）
                         image_dir = md_file.parent / "images"
 
-                        # 处理图片（如果需要）
-                        if upload_images and image_dir.exists():
-                            logger.info(f"🖼️  Processing images for task {task_id}, upload_images={upload_images}")
-                            md_content = process_markdown_images(md_content, image_dir, upload_images)
+                        # 缓存文件路径
+                        cached_md_file = md_file.parent / "result_minio.md" if upload_images else None
 
-                        # 添加 Markdown 相关字段
-                        response["data"]["markdown_file"] = md_file.name
-                        response["data"]["content"] = md_content
-                        response["data"]["images_uploaded"] = upload_images
-                        response["data"]["has_images"] = image_dir.exists() if not upload_images else None
+                        # 如果请求 MinIO 版本且缓存存在，直接返回缓存
+                        if upload_images and cached_md_file and cached_md_file.exists():
+                            logger.info(f"✅ Found cached MinIO markdown: {cached_md_file.name}")
+                            with open(cached_md_file, "r", encoding="utf-8") as f:
+                                md_content = f.read()
+
+                            response["data"]["markdown_file"] = cached_md_file.name
+                            response["data"]["content"] = md_content
+                            response["data"]["images_uploaded"] = True
+                            response["data"]["from_cache"] = True
+                        else:
+                            # 读取原始 Markdown 内容
+                            logger.info(f"📖 Reading markdown file: {md_file}")
+                            with open(md_file, "r", encoding="utf-8") as f:
+                                md_content = f.read()
+
+                            logger.info(f"✅ Markdown content loaded, length: {len(md_content)} characters")
+
+                            # 处理图片路径
+                            if image_dir.exists():
+                                logger.info(f"🖼️  Processing images for task {task_id}, upload_images={upload_images}")
+                                logger.info(f"   Image directory: {image_dir}")
+                                md_content = process_markdown_images(
+                                    md_content, image_dir, task["result_path"], upload_images
+                                )
+
+                                # 如果上传到 MinIO，保存缓存文件
+                                if upload_images and cached_md_file:
+                                    try:
+                                        cached_md_file.write_text(md_content, encoding="utf-8")
+                                        logger.info(f"💾 Saved MinIO markdown cache: {cached_md_file.name}")
+                                    except Exception as e:
+                                        logger.warning(f"⚠️  Failed to save cache: {e}")
+                            else:
+                                logger.debug("ℹ️  No images directory found (task may not contain images)")
+
+                            # 添加 Markdown 相关字段
+                            response["data"]["markdown_file"] = md_file.name
+                            response["data"]["content"] = md_content
+                            response["data"]["images_uploaded"] = upload_images
+                            response["data"]["has_images"] = image_dir.exists() if not upload_images else None
+                            response["data"]["from_cache"] = False
 
                     # 如果用户请求 JSON 格式
                     if format in ["json", "both"] and json_files:
@@ -654,6 +763,59 @@ async def health_check():
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return JSONResponse(status_code=503, content={"status": "unhealthy", "error": str(e)})
+
+
+# ============================================================================
+# 自定义文件服务（支持 URL 编码的中文路径）
+# ============================================================================
+from urllib.parse import unquote
+
+
+@app.get("/v1/files/output/{file_path:path}")
+async def serve_output_file(file_path: str):
+    """
+    提供输出文件的访问服务
+
+    支持 URL 编码的中文路径
+    注意：Nginx 代理会去掉 /api/ 前缀，所以这里不需要 /api/
+    """
+    try:
+        logger.debug(f"📥 Received file request: {file_path}")
+        # URL 解码
+        decoded_path = unquote(file_path)
+        logger.debug(f"📝 Decoded path: {decoded_path}")
+        # 构建完整路径
+        full_path = OUTPUT_DIR / decoded_path
+        logger.debug(f"📂 Full path: {full_path}")
+
+        # 安全检查：确保路径在 OUTPUT_DIR 内
+        try:
+            full_path = full_path.resolve()
+            OUTPUT_DIR.resolve()
+            if not str(full_path).startswith(str(OUTPUT_DIR.resolve())):
+                raise HTTPException(status_code=403, detail="Access denied")
+        except Exception:
+            raise HTTPException(status_code=403, detail="Invalid path")
+
+        # 检查文件是否存在
+        if not full_path.exists():
+            logger.warning(f"⚠️  File not found: {full_path}")
+            raise HTTPException(status_code=404, detail="File not found")
+
+        if not full_path.is_file():
+            raise HTTPException(status_code=404, detail="Not a file")
+
+        # 返回文件
+        return FileResponse(path=str(full_path), media_type="application/octet-stream", filename=full_path.name)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error serving file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+logger.info(f"📁 File service mounted: /v1/files/output -> {OUTPUT_DIR}")
+logger.info("   Frontend can access images via: /api/v1/files/output/{task_id}/images/xxx.jpg (Nginx will strip /api/)")
 
 
 if __name__ == "__main__":

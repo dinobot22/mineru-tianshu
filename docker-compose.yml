@@ -31,6 +31,12 @@ services:
     volumes:
       # 模型存储（持久化）
       - ./models:/app/models:rw
+      # PaddleOCR 模型缓存（持久化，避免重复下载）
+      - ./models/paddlex_cache:/root/.paddlex:rw
+      # Hugging Face 模型缓存（持久化）
+      - ./models/huggingface_cache:/root/.cache/huggingface:rw
+      # ModelScope 模型缓存（持久化，国内模型下载）
+      - ./models/modelscope_cache:/root/.cache/modelscope:rw
       # 上传文件
       - ./data/uploads:/app/uploads:rw
       # 输出结果
@@ -42,7 +48,7 @@ services:
     environment:
       # 应用配置
       - HOST=0.0.0.0
-      - PORT=8000
+      - API_PORT=8000
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
 
       # JWT 认证
@@ -106,6 +112,12 @@ services:
     volumes:
       # 模型存储（读写，因为 SenseVoice 等引擎需要创建缓存目录和下载模型）
       - ./models:/app/models:rw
+      # PaddleOCR 模型缓存（持久化，避免重复下载）
+      - ./models/paddlex_cache:/root/.paddlex:rw
+      # Hugging Face 模型缓存（持久化）
+      - ./models/huggingface_cache:/root/.cache/huggingface:rw
+      # ModelScope 模型缓存（持久化，国内模型下载）
+      - ./models/modelscope_cache:/root/.cache/modelscope:rw
       # 上传文件（只读）
       - ./data/uploads:/app/uploads:ro
       # 输出结果
@@ -117,7 +129,7 @@ services:
     environment:
       # 应用配置
       - HOST=0.0.0.0
-      - PORT=8001
+      - WORKER_PORT=8001
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
 
       # GPU 配置
@@ -175,7 +187,7 @@ services:
       - ./logs/mcp:/app/logs:rw
     environment:
       - HOST=0.0.0.0
-      - PORT=8002
+      - MCP_PORT=8002
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - API_URL=${API_URL:-http://backend:8000}
     healthcheck:

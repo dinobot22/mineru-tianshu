@@ -63,13 +63,14 @@ server {
         add_header Cache-Control "no-cache, no-store, must-revalidate";
     }
 
-    # 静态资源缓存
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+    # 静态资源缓存（排除 /api/ 路径，避免干扰后端静态文件服务）
+    location ~* ^(?!/api/).*\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
 
-    # API 代理（如果需要）
+    # API 代理（包括静态文件）
+    # /api/v1/files/output/* 会被代理到后端的静态文件服务
     location /api/ {
         proxy_pass http://backend:8000/;
         proxy_http_version 1.1;
