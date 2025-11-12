@@ -20,7 +20,7 @@ COPY frontend/package*.json ./
 # 安装依赖（使用国内镜像加速）
 # 注意：构建阶段需要 devDependencies（包括 vite, typescript, postcss 等）
 RUN npm config set registry https://registry.npmmirror.com && \
-    npm ci --ignore-scripts && \
+    npm install --ignore-scripts && \
     npm cache clean --force
 
 # 复制前端源代码
