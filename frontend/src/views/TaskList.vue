@@ -2,8 +2,8 @@
   <div>
     <!-- 页面标题 -->
     <div class="mb-6">
-      <h1 class="text-2xl font-bold text-gray-900">任务列表</h1>
-      <p class="mt-1 text-sm text-gray-600">查看和管理所有解析任务</p>
+      <h1 class="text-2xl font-bold text-gray-900">{{ $t('task.taskList') }}</h1>
+      <p class="mt-1 text-sm text-gray-600">{{ $t('task.taskList') }}</p>
     </div>
 
     <!-- 筛选和搜索 -->
@@ -11,30 +11,30 @@
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <!-- 状态筛选 -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">状态筛选</label>
+          <label class="block text-sm font-medium text-gray-700 mb-2">{{ $t('task.filterByStatus') }}</label>
           <select
             v-model="filters.status"
             @change="applyFilters"
             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            <option value="">全部</option>
-            <option value="pending">等待中</option>
-            <option value="processing">处理中</option>
-            <option value="completed">已完成</option>
-            <option value="failed">失败</option>
-            <option value="cancelled">已取消</option>
+            <option value="">{{ $t('task.allStatus') }}</option>
+            <option value="pending">{{ $t('status.pending') }}</option>
+            <option value="processing">{{ $t('status.processing') }}</option>
+            <option value="completed">{{ $t('status.completed') }}</option>
+            <option value="failed">{{ $t('status.failed') }}</option>
+            <option value="cancelled">{{ $t('status.cancelled') }}</option>
           </select>
         </div>
 
         <!-- 后端筛选 -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">后端类型</label>
+          <label class="block text-sm font-medium text-gray-700 mb-2">{{ $t('task.backend') }}</label>
           <select
             v-model="filters.backend"
             @change="applyFilters"
             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
-            <option value="">全部</option>
+            <option value="">{{ $t('task.allStatus') }}</option>
             <option value="pipeline">MinerU Pipeline</option>
             <option value="paddleocr-vl">PaddleOCR-VL</option>
             <option value="vlm-transformers">VLM Transformers</option>
@@ -44,13 +44,13 @@
 
         <!-- 搜索 -->
         <div class="md:col-span-2">
-          <label class="block text-sm font-medium text-gray-700 mb-2">搜索文件名</label>
+          <label class="block text-sm font-medium text-gray-700 mb-2">{{ $t('common.search') }}</label>
           <div class="relative">
             <input
               v-model="filters.search"
               @input="applyFilters"
               type="text"
-              placeholder="输入文件名搜索..."
+              :placeholder="$t('common.search')"
               class="w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -60,7 +60,7 @@
 
       <div class="mt-4 flex justify-between items-center">
         <div class="text-sm text-gray-600">
-          共 {{ filteredTasks.length }} 个任务
+          {{ $t('common.total') }}: {{ filteredTasks.length }}
         </div>
         <div class="flex gap-2">
           <button
@@ -69,11 +69,11 @@
             class="btn btn-secondary btn-sm flex items-center"
           >
             <RefreshCw :class="{ 'animate-spin': loading }" class="w-4 h-4 mr-1" />
-            刷新
+            {{ $t('common.refresh') }}
           </button>
           <router-link to="/tasks/submit" class="btn btn-primary btn-sm flex items-center">
             <Plus class="w-4 h-4 mr-1" />
-            新建任务
+            {{ $t('task.submitTask') }}
           </router-link>
         </div>
       </div>
@@ -82,12 +82,12 @@
     <!-- 任务列表 -->
     <div class="card">
       <div v-if="loading && tasks.length === 0" class="text-center py-12">
-        <LoadingSpinner text="加载中..." />
+        <LoadingSpinner :text="$t('common.loading')" />
       </div>
 
       <div v-else-if="filteredTasks.length === 0" class="text-center py-12 text-gray-500">
         <FileQuestion class="w-16 h-16 mx-auto mb-4 text-gray-400" />
-        <p>{{ filters.status || filters.backend || filters.search ? '没有符合条件的任务' : '暂无任务' }}</p>
+        <p>{{ $t('task.noTasks') }}</p>
       </div>
 
       <div v-else class="overflow-x-auto">
@@ -103,22 +103,22 @@
                 />
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                文件名
+                {{ $t('task.fileName') }}
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                状态
+                {{ $t('task.status') }}
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                后端
+                {{ $t('task.backend') }}
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                创建时间
+                {{ $t('task.createdAt') }}
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Worker
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                操作
+                {{ $t('task.actions') }}
               </th>
             </tr>
           </thead>
@@ -170,7 +170,7 @@
                     v-if="task.status === 'pending'"
                     @click="cancelTask(task.task_id)"
                     class="text-red-600 hover:text-red-700"
-                    title="取消"
+                    :title="$t('common.cancel')"
                   >
                     <X class="w-4 h-4" />
                   </button>
@@ -186,7 +186,7 @@
         <!-- 批量操作 -->
         <div class="flex items-center gap-2">
           <span v-if="selectedTasks.length > 0" class="text-sm text-gray-600">
-            已选择 {{ selectedTasks.length }} 项
+            {{ $t('common.selected') }}: {{ selectedTasks.length }}
           </span>
           <button
             v-if="selectedTasks.length > 0"
@@ -194,7 +194,7 @@
             class="btn btn-secondary btn-sm flex items-center"
           >
             <X class="w-4 h-4 mr-1" />
-            批量取消
+            {{ $t('common.cancel') }}
           </button>
         </div>
 
@@ -208,7 +208,7 @@
             <ChevronLeft class="w-5 h-5" />
           </button>
           <span class="text-sm text-gray-600">
-            第 {{ currentPage }} / {{ totalPages }} 页
+            {{ $t('common.page') }} {{ currentPage }} / {{ totalPages }}
           </span>
           <button
             @click="currentPage++"
@@ -224,7 +224,7 @@
     <!-- 取消确认对话框 -->
     <ConfirmDialog
       v-model="showCancelDialog"
-      title="确认取消"
+      :title="$t('common.confirm')"
       :message="cancelDialogMessage"
       @confirm="confirmCancel"
     />

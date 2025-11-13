@@ -68,6 +68,12 @@ const router = createRouter({
           name: 'user-management',
           component: () => import('@/views/UserManagement.vue'),
           meta: { title: '用户管理', requiresAdmin: true }
+        },
+        {
+          path: 'api-docs',
+          name: 'api-docs',
+          component: () => import('@/views/ApiDocsScalar.vue'),
+          meta: { title: 'API 文档' }
         }
       ]
     },

@@ -19,10 +19,10 @@
 
       <Upload class="mx-auto h-12 w-12 text-gray-400" />
       <p class="mt-2 text-sm text-gray-600">
-        <span class="font-semibold text-primary-600">点击上传</span> 或拖拽文件到此处
+        <span class="font-semibold text-primary-600">{{ $t('uploader.clickToUpload') }}</span> {{ $t('uploader.dragDropHint') }}
       </p>
       <p class="mt-1 text-xs text-gray-500">{{ acceptHint }}</p>
-      <p v-if="maxSize" class="text-xs text-gray-400">最大文件大小: {{ formatFileSize(maxSize) }}</p>
+      <p v-if="maxSize" class="text-xs text-gray-400">{{ $t('uploader.maxFileSize') }}: {{ formatFileSize(maxSize) }}</p>
     </div>
 
     <!-- 文件列表 -->
@@ -52,8 +52,11 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Upload, FileText, X } from 'lucide-vue-next'
 import { formatFileSize } from '@/utils/format'
+
+const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   accept?: string
@@ -63,7 +66,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   accept: '*',
   multiple: true,
-  acceptHint: '支持 PDF、图片、Office 文档等多种格式'
+  acceptHint: ''
 })
 
 const emit = defineEmits<{
@@ -112,7 +115,7 @@ function addFiles(newFiles: File[]) {
   if (props.maxSize) {
     newFiles = newFiles.filter(file => {
       if (file.size > props.maxSize!) {
-        alert(`文件 ${file.name} 超过最大大小限制`)
+        alert(t('uploader.fileTooLarge', { name: file.name }))
         return false
       }
       return true

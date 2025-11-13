@@ -9,13 +9,13 @@
 
       <!-- 登录表单 -->
       <div class="bg-white rounded-2xl shadow-xl p-8">
-        <h2 class="text-2xl font-semibold text-gray-900 mb-6">登录</h2>
+        <h2 class="text-2xl font-semibold text-gray-900 mb-6">{{ $t('auth.loginTitle') }}</h2>
 
         <form @submit.prevent="handleLogin" class="space-y-4">
           <!-- 用户名 -->
           <div>
             <label for="username" class="block text-sm font-medium text-gray-700 mb-1">
-              用户名
+              {{ $t('auth.username') }}
             </label>
             <input
               id="username"
@@ -23,14 +23,14 @@
               type="text"
               required
               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="请输入用户名"
+              :placeholder="$t('auth.username')"
             />
           </div>
 
           <!-- 密码 -->
           <div>
             <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
-              密码
+              {{ $t('auth.password') }}
             </label>
             <input
               id="password"
@@ -38,7 +38,7 @@
               type="password"
               required
               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="请输入密码"
+              :placeholder="$t('auth.password')"
             />
           </div>
 
@@ -48,13 +48,13 @@
             :disabled="authStore.loading"
             class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            <span v-if="!authStore.loading">登录</span>
+            <span v-if="!authStore.loading">{{ $t('auth.loginButton') }}</span>
             <span v-else class="flex items-center justify-center">
               <svg class="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              登录中...
+              {{ $t('common.loading') }}
             </span>
           </button>
         </form>
@@ -62,9 +62,9 @@
         <!-- 注册链接 -->
         <div class="mt-6 text-center">
           <p class="text-sm text-gray-600">
-            还没有账号？
+            {{ $t('auth.noAccount') }}
             <router-link to="/register" class="text-blue-600 hover:text-blue-700 font-medium">
-              立即注册
+              {{ $t('auth.goToRegister') }}
             </router-link>
           </p>
         </div>

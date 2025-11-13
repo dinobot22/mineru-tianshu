@@ -17,6 +17,7 @@
     "vite": "^7.1.7"
   },
   "dependencies": {
+    "@scalar/api-reference": "^1.25.73",
     "@tailwindcss/typography": "^0.5.19",
     "@vitejs/plugin-vue": "^6.0.1",
     "axios": "^1.12.2",
@@ -27,6 +28,7 @@
     "marked": "^16.4.1",
     "pinia": "^3.0.3",
     "vue": "^3.5.22",
+    "vue-i18n": "^10.0.4",
     "vue-router": "^4.6.3"
   }
 }

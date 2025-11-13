@@ -1,59 +1,59 @@
 <template>
   <div>
     <!-- 页面标题 -->
-    <div class="mb-6">
-      <h1 class="text-2xl font-bold text-gray-900">仪表盘</h1>
-      <p class="mt-1 text-sm text-gray-600">实时监控文档解析任务状态</p>
+    <div class="mb-6 lg:mb-10">
+      <h1 class="text-2xl lg:text-3xl xl:text-4xl font-bold text-gray-900 tracking-tight">{{ $t('dashboard.title') }}</h1>
+      <p class="mt-2 lg:mt-3 text-base lg:text-lg text-gray-600">{{ $t('dashboard.systemStatus') }}</p>
     </div>
 
     <!-- 队列统计卡片 -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
       <StatCard
-        title="等待中"
+        :title="$t('status.pending')"
         :value="queueStore.stats.pending"
-        subtitle="待处理任务"
+        :subtitle="$t('dashboard.pendingTasks')"
         :icon="Clock"
         color="gray"
       />
       <StatCard
-        title="处理中"
+        :title="$t('status.processing')"
         :value="queueStore.stats.processing"
-        subtitle="正在解析"
+        :subtitle="$t('dashboard.processingTasks')"
         :icon="Loader"
         color="yellow"
       />
       <StatCard
-        title="已完成"
+        :title="$t('status.completed')"
         :value="queueStore.stats.completed"
-        subtitle="解析成功"
+        :subtitle="$t('dashboard.completedTasks')"
         :icon="CheckCircle"
         color="green"
       />
       <StatCard
-        title="失败"
+        :title="$t('status.failed')"
         :value="queueStore.stats.failed"
-        subtitle="解析失败"
+        :subtitle="$t('dashboard.failedTasks')"
         :icon="XCircle"
         color="red"
       />
     </div>
 
     <!-- 快捷操作 -->
-    <div class="mb-8">
+    <div class="mb-6 lg:mb-8">
       <div class="card">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">快捷操作</h2>
-        <div class="flex flex-wrap gap-3">
-          <router-link to="/tasks/submit" class="btn btn-primary">
+        <h2 class="text-base lg:text-lg font-semibold text-gray-900 mb-3 lg:mb-4">{{ $t('common.actions') }}</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 lg:gap-3">
+          <router-link to="/tasks/submit" class="btn btn-primary flex items-center justify-center">
             <Upload class="w-4 h-4 mr-2" />
-            提交新任务
+            {{ $t('task.submitTask') }}
           </router-link>
-          <router-link to="/tasks" class="btn btn-secondary">
+          <router-link to="/tasks" class="btn btn-secondary flex items-center justify-center">
             <ListTodo class="w-4 h-4 mr-2" />
-            查看任务列表
+            {{ $t('task.taskList') }}
           </router-link>
-          <router-link to="/queue" class="btn btn-secondary">
+          <router-link to="/queue" class="btn btn-secondary flex items-center justify-center">
             <Settings class="w-4 h-4 mr-2" />
-            队列管理
+            {{ $t('queue.title') }}
           </router-link>
         </div>
       </div>
@@ -61,42 +61,43 @@
 
     <!-- 最近任务 -->
     <div class="card">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold text-gray-900">最近任务</h2>
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        <h2 class="text-base lg:text-lg font-semibold text-gray-900">{{ $t('dashboard.recentTasks') }}</h2>
         <button
           @click="refreshTasks"
           :disabled="taskStore.loading"
-          class="text-sm text-primary-600 hover:text-primary-700 flex items-center"
+          class="text-sm text-primary-600 hover:text-primary-700 flex items-center justify-center sm:justify-start"
         >
           <RefreshCw :class="{ 'animate-spin': taskStore.loading }" class="w-4 h-4 mr-1" />
-          刷新
+          {{ $t('common.refresh') }}
         </button>
       </div>
 
       <div v-if="taskStore.loading && recentTasks.length === 0" class="text-center py-8">
-        <LoadingSpinner text="加载中..." />
+        <LoadingSpinner :text="$t('common.loading')" />
       </div>
 
       <div v-else-if="recentTasks.length === 0" class="text-center py-8 text-gray-500">
         <FileQuestion class="w-12 h-12 mx-auto mb-2 text-gray-400" />
-        <p>暂无任务</p>
+        <p>{{ $t('task.noTasks') }}</p>
       </div>
 
-      <div v-else class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
+      <div v-else class="overflow-x-auto -mx-4 sm:-mx-6 lg:-mx-8">
+        <div class="inline-block min-w-full align-middle px-4 sm:px-6 lg:px-8">
+          <table class="min-w-full divide-y divide-gray-200">
           <thead>
             <tr class="bg-gray-50">
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                文件名
+                {{ $t('task.fileName') }}
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                状态
+                {{ $t('task.status') }}
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                创建时间
+                {{ $t('task.createdAt') }}
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                操作
+                {{ $t('task.actions') }}
               </th>
             </tr>
           </thead>
@@ -128,6 +129,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       <div v-if="recentTasks.length > 0" class="mt-4 text-center">

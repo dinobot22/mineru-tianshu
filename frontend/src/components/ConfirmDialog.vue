@@ -9,10 +9,10 @@
         <div class="flex min-h-screen items-center justify-center p-4">
           <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6 transform transition-all">
             <!-- 标题 -->
-            <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ title }}</h3>
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ title || t('common.confirm') }}</h3>
 
             <!-- 内容 -->
-            <p class="text-sm text-gray-600 mb-6">{{ message }}</p>
+            <p class="text-sm text-gray-600 mb-6">{{ message || t('common.confirm') }}</p>
 
             <!-- 按钮 -->
             <div class="flex justify-end gap-3">
@@ -20,14 +20,14 @@
                 @click="onCancel"
                 class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
-                {{ cancelText }}
+                {{ cancelText || t('common.cancel') }}
               </button>
               <button
                 @click="onConfirm"
                 :class="confirmButtonClass"
                 class="px-4 py-2 text-sm font-medium text-white rounded-lg"
               >
-                {{ confirmText }}
+                {{ confirmText || t('common.confirm') }}
               </button>
             </div>
           </div>
@@ -39,6 +39,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   modelValue: boolean
@@ -48,10 +51,10 @@ const props = withDefaults(defineProps<{
   cancelText?: string
   type?: 'danger' | 'warning' | 'info'
 }>(), {
-  title: '确认',
-  message: '您确定要执行此操作吗?',
-  confirmText: '确定',
-  cancelText: '取消',
+  title: '',
+  message: '',
+  confirmText: '',
+  cancelText: '',
   type: 'danger'
 })
 

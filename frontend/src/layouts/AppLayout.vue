@@ -1,97 +1,138 @@
 <template>
-  <div class="min-h-screen bg-gray-50">
+  <div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
     <!-- 顶部导航栏 -->
-    <nav class="bg-white shadow-sm border-b border-gray-200">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
+    <nav class="bg-white/80 backdrop-blur-md shadow-sm border-b border-gray-200/50 sticky top-0 z-40">
+      <div class="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
+        <div class="flex justify-between items-center h-16 lg:h-20">
           <!-- 左侧：Logo 和导航链接 -->
-          <div class="flex">
+          <div class="flex items-center min-w-0 flex-1">
             <!-- Logo -->
             <div class="flex-shrink-0 flex items-center">
-              <router-link to="/" class="flex items-center gap-2">
-                <img src="/logo.svg" alt="Tianshu Logo" class="h-8" />
+              <router-link to="/" class="flex items-center gap-2 group">
+                <img src="/logo.svg" alt="Tianshu Logo" class="h-8 lg:h-10 transition-transform group-hover:scale-105" />
               </router-link>
             </div>
 
-            <!-- 导航链接 -->
-            <div class="hidden sm:ml-8 sm:flex sm:space-x-4">
+            <!-- 导航链接 - 响应式优化 -->
+            <div class="hidden md:ml-6 lg:ml-10 xl:ml-16 md:flex md:space-x-0.5 lg:space-x-1 overflow-x-auto scrollbar-hide">
               <router-link
                 v-for="item in navItems"
                 :key="item.path"
                 :to="item.path"
                 :class="isActive(item.path) ? activeClass : inactiveClass"
-                class="inline-flex items-center px-3 py-2 text-sm font-medium transition-colors"
+                class="inline-flex items-center px-2 lg:px-3 xl:px-4 py-2 text-sm lg:text-base font-medium rounded-lg transition-all duration-200 whitespace-nowrap flex-shrink-0"
               >
-                <component :is="item.icon" class="w-4 h-4 mr-2" />
-                {{ item.name }}
+                <component :is="item.icon" class="w-4 h-4 lg:w-5 lg:h-5 mr-1.5 lg:mr-2" />
+                <span class="hidden lg:inline">{{ $t(item.i18nKey) }}</span>
               </router-link>
             </div>
           </div>
 
           <!-- 右侧：系统状态和操作 -->
-          <div class="flex items-center gap-4">
-            <!-- 队列统计摘要 -->
-            <div v-if="queueStore.stats" class="hidden md:flex items-center gap-3 text-sm">
-              <div class="flex items-center gap-1">
-                <div class="w-2 h-2 rounded-full bg-yellow-400"></div>
-                <span class="text-gray-600">处理中: {{ queueStore.stats.processing }}</span>
+          <div class="flex items-center gap-1 sm:gap-2 lg:gap-3 flex-shrink-0">
+            <!-- 队列统计摘要 - 更紧凑 -->
+            <div v-if="queueStore.stats" class="hidden xl:flex items-center gap-3 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200/50">
+              <div class="flex items-center gap-1.5">
+                <div class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></div>
+                <span class="text-xs font-medium text-gray-700">{{ $t('queue.processing') }}</span>
+                <span class="text-xs font-bold text-yellow-600">{{ queueStore.stats.processing }}</span>
               </div>
-              <div class="flex items-center gap-1">
+              <div class="w-px h-3 bg-gray-300"></div>
+              <div class="flex items-center gap-1.5">
                 <div class="w-2 h-2 rounded-full bg-gray-400"></div>
-                <span class="text-gray-600">等待: {{ queueStore.stats.pending }}</span>
+                <span class="text-xs font-medium text-gray-700">{{ $t('queue.pending') }}</span>
+                <span class="text-xs font-bold text-gray-600">{{ queueStore.stats.pending }}</span>
               </div>
             </div>
 
-            <!-- GitHub Star 按钮 -->
+            <!-- GitHub Star 按钮 - 仅大屏显示 -->
             <a
               href="https://github.com/magicyuan876/mineru-tianshu"
               target="_blank"
               rel="noopener noreferrer"
-              class="hidden sm:flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:text-gray-900 transition-colors"
+              class="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 hover:border-gray-400 transition-all duration-200 shadow-sm hover:shadow"
               title="Star on GitHub"
             >
               <Github class="w-4 h-4" />
-              <span>Star</span>
+              <span class="hidden xl:inline">Star</span>
             </a>
 
             <!-- 刷新按钮 -->
             <button
               @click="refreshStats"
               :disabled="queueStore.loading"
-              class="p-2 text-gray-600 hover:text-primary-600 transition-colors"
-              title="刷新统计"
+              class="p-2 lg:p-2.5 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-lg transition-all duration-200"
+              :title="$t('queue.refresh')"
             >
-              <RefreshCw :class="{ 'animate-spin': queueStore.loading }" class="w-5 h-5" />
+              <RefreshCw :class="{ 'animate-spin': queueStore.loading }" class="w-4 h-4 lg:w-5 lg:h-5" />
             </button>
+
+            <!-- 语言切换 -->
+            <div class="relative hidden sm:block" ref="langMenuRef">
+              <button
+                @click="langMenuOpen = !langMenuOpen"
+                class="flex items-center gap-1 lg:gap-2 px-2 lg:px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-transparent hover:border-gray-300"
+                :title="$t('common.language')"
+              >
+                <Languages class="w-4 h-4 lg:w-5 lg:h-5" />
+                <span class="hidden xl:block">{{ localeStore.currentLocaleName }}</span>
+                <ChevronDown :class="{ 'rotate-180': langMenuOpen }" class="w-3 h-3 lg:w-4 lg:h-4 transition-transform duration-200" />
+              </button>
+
+              <!-- 语言下拉菜单 -->
+              <div
+                v-if="langMenuOpen"
+                class="absolute right-0 mt-3 w-48 bg-white rounded-xl shadow-xl border border-gray-200/50 py-2 z-50 backdrop-blur-sm"
+              >
+                <button
+                  v-for="locale in localeStore.availableLocales"
+                  :key="locale.value"
+                  @click="handleChangeLocale(locale.value)"
+                  :class="{
+                    'bg-primary-50 text-primary-600 font-semibold': localeStore.currentLocale === locale.value,
+                    'text-gray-700 hover:bg-gray-50': localeStore.currentLocale !== locale.value,
+                  }"
+                  class="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-all duration-200"
+                >
+                  <Check
+                    v-if="localeStore.currentLocale === locale.value"
+                    class="w-4 h-4 flex-shrink-0"
+                  />
+                  <span :class="{ 'ml-7': localeStore.currentLocale !== locale.value }">
+                    {{ locale.label }}
+                  </span>
+                </button>
+              </div>
+            </div>
 
             <!-- 用户菜单 -->
             <div class="relative hidden sm:block" ref="userMenuRef">
               <button
                 @click="userMenuOpen = !userMenuOpen"
-                class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+                class="flex items-center gap-1 lg:gap-2 px-2 lg:px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-transparent hover:border-gray-300"
               >
-                <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                  <UserIcon class="w-4 h-4 text-blue-600" />
+                <div class="w-8 h-8 lg:w-9 lg:h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold shadow-sm">
+                  {{ authStore.user?.username?.charAt(0).toUpperCase() }}
                 </div>
-                <span class="hidden lg:block">{{ authStore.user?.username }}</span>
-                <ChevronDown :class="{ 'rotate-180': userMenuOpen }" class="w-4 h-4 transition-transform" />
+                <span class="hidden xl:block">{{ authStore.user?.username }}</span>
+                <ChevronDown :class="{ 'rotate-180': userMenuOpen }" class="w-3 h-3 lg:w-4 lg:h-4 transition-transform duration-200" />
               </button>
 
               <!-- 下拉菜单 -->
               <div
                 v-if="userMenuOpen"
-                class="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50"
+                class="absolute right-0 mt-3 w-64 bg-white rounded-xl shadow-xl border border-gray-200/50 py-2 z-50 backdrop-blur-sm"
               >
-                <div class="px-4 py-2 border-b border-gray-200">
-                  <p class="text-sm font-medium text-gray-900">{{ authStore.user?.username }}</p>
-                  <p class="text-xs text-gray-500">{{ authStore.user?.email }}</p>
+                <div class="px-4 py-3 border-b border-gray-100">
+                  <p class="text-sm font-semibold text-gray-900">{{ authStore.user?.username }}</p>
+                  <p class="text-xs text-gray-500 mt-0.5">{{ authStore.user?.email }}</p>
                   <span
                     :class="{
-                      'bg-red-100 text-red-800': authStore.user?.role === 'admin',
-                      'bg-yellow-100 text-yellow-800': authStore.user?.role === 'manager',
-                      'bg-blue-100 text-blue-800': authStore.user?.role === 'user',
+                      'bg-gradient-to-r from-red-500 to-red-600 text-white': authStore.user?.role === 'admin',
+                      'bg-gradient-to-r from-yellow-500 to-yellow-600 text-white': authStore.user?.role === 'manager',
+                      'bg-gradient-to-r from-blue-500 to-blue-600 text-white': authStore.user?.role === 'user',
                     }"
-                    class="inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded"
+                    class="inline-block mt-2 px-2.5 py-1 text-xs font-semibold rounded-md shadow-sm"
                   >
                     {{ roleLabel(authStore.user?.role) }}
                   </span>
@@ -100,20 +141,20 @@
                 <router-link
                   to="/profile"
                   @click="userMenuOpen = false"
-                  class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-200"
                 >
                   <UserIcon class="w-4 h-4" />
-                  <span>个人资料</span>
+                  <span>{{ $t('common.profile') }}</span>
                 </router-link>
 
                 <router-link
                   v-if="authStore.isAdmin"
                   to="/users"
                   @click="userMenuOpen = false"
-                  class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-200"
                 >
                   <Users class="w-4 h-4" />
-                  <span>用户管理</span>
+                  <span>{{ $t('nav.userManagement') }}</span>
                 </router-link>
 
                 <div class="border-t border-gray-200 my-2"></div>
@@ -123,7 +164,7 @@
                   class="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
                 >
                   <LogOut class="w-4 h-4" />
-                  <span>退出登录</span>
+                  <span>{{ $t('common.logout') }}</span>
                 </button>
               </div>
             </div>
@@ -131,7 +172,7 @@
             <!-- 移动端菜单按钮 -->
             <button
               @click="mobileMenuOpen = !mobileMenuOpen"
-              class="sm:hidden p-2 text-gray-600 hover:text-gray-900"
+              class="md:hidden p-2 text-gray-600 hover:text-gray-900"
             >
               <Menu v-if="!mobileMenuOpen" class="w-6 h-6" />
               <X v-else class="w-6 h-6" />
@@ -141,7 +182,7 @@
       </div>
 
       <!-- 移动端菜单 -->
-      <div v-if="mobileMenuOpen" class="sm:hidden border-t border-gray-200">
+      <div v-if="mobileMenuOpen" class="md:hidden border-t border-gray-200 bg-white">
         <div class="px-2 pt-2 pb-3 space-y-1">
           <router-link
             v-for="item in navItems"
@@ -152,14 +193,87 @@
             class="flex items-center px-3 py-2 text-base font-medium rounded-md"
           >
             <component :is="item.icon" class="w-5 h-5 mr-3" />
-            {{ item.name }}
+            {{ $t(item.i18nKey) }}
           </router-link>
+
+          <!-- 移动端队列统计 -->
+          <div v-if="queueStore.stats" class="px-3 py-3 bg-gray-50 rounded-md mx-2 mt-2">
+            <div class="flex items-center justify-around text-sm">
+              <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></div>
+                <span class="text-gray-700">{{ $t('queue.processing') }}</span>
+                <span class="font-bold text-yellow-600">{{ queueStore.stats.processing }}</span>
+              </div>
+              <div class="w-px h-4 bg-gray-300"></div>
+              <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full bg-gray-400"></div>
+                <span class="text-gray-700">{{ $t('queue.pending') }}</span>
+                <span class="font-bold text-gray-600">{{ queueStore.stats.pending }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 移动端语言切换 -->
+          <div class="sm:hidden px-3 py-2">
+            <div class="text-xs font-medium text-gray-500 mb-2">{{ $t('common.language') }}</div>
+            <div class="flex gap-2">
+              <button
+                v-for="locale in localeStore.availableLocales"
+                :key="locale.value"
+                @click="handleChangeLocale(locale.value)"
+                :class="{
+                  'bg-primary-600 text-white': localeStore.currentLocale === locale.value,
+                  'bg-gray-100 text-gray-700': localeStore.currentLocale !== locale.value,
+                }"
+                class="flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200"
+              >
+                {{ locale.label }}
+              </button>
+            </div>
+          </div>
+
+          <!-- 移动端用户信息 -->
+          <div class="sm:hidden px-3 py-3 border-t border-gray-200 mt-2">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold shadow-sm">
+                {{ authStore.user?.username?.charAt(0).toUpperCase() }}
+              </div>
+              <div>
+                <p class="text-sm font-semibold text-gray-900">{{ authStore.user?.username }}</p>
+                <p class="text-xs text-gray-500">{{ authStore.user?.email }}</p>
+              </div>
+            </div>
+            <router-link
+              to="/profile"
+              @click="mobileMenuOpen = false"
+              class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 bg-gray-50 rounded-lg mb-2"
+            >
+              <UserIcon class="w-4 h-4" />
+              <span>{{ $t('common.profile') }}</span>
+            </router-link>
+            <router-link
+              v-if="authStore.isAdmin"
+              to="/users"
+              @click="mobileMenuOpen = false"
+              class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 bg-gray-50 rounded-lg mb-2"
+            >
+              <Users class="w-4 h-4" />
+              <span>{{ $t('nav.userManagement') }}</span>
+            </router-link>
+            <button
+              @click="handleLogout"
+              class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 bg-red-50 rounded-lg"
+            >
+              <LogOut class="w-4 h-4" />
+              <span>{{ $t('common.logout') }}</span>
+            </button>
+          </div>
         </div>
       </div>
     </nav>
 
     <!-- 主内容区域 -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-6 lg:py-10 max-w-[1920px] mx-auto">
       <router-view v-slot="{ Component }">
         <transition name="fade" mode="out-in">
           <component :is="Component" />
@@ -173,7 +287,7 @@
         <div class="flex flex-col items-center gap-3">
           <!-- GitHub Star 提示 -->
           <div class="flex items-center gap-2 text-sm">
-            <span class="text-gray-600">喜欢这个项目？</span>
+            <span class="text-gray-600">{{ $t('footer.likeProject') }}</span>
             <a
               href="https://github.com/magicyuan876/mineru-tianshu"
               target="_blank"
@@ -181,14 +295,14 @@
               class="inline-flex items-center gap-1.5 px-3 py-1 text-sm font-medium text-white bg-gray-800 rounded-md hover:bg-gray-700 transition-colors"
             >
               <Github class="w-4 h-4" />
-              <span>Star on GitHub</span>
+              <span>{{ $t('footer.starOnGitHub') }}</span>
               <Star class="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
             </a>
           </div>
 
           <!-- 版权信息 -->
           <p class="text-center text-sm text-gray-500">
-            © 2024 MinerU Tianshu - 天枢文档解析服务
+            {{ $t('footer.copyright') }}
           </p>
         </div>
       </div>
@@ -197,11 +311,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useQueueStore, useAuthStore } from '@/stores'
+import { useI18n } from 'vue-i18n'
+import { useQueueStore, useAuthStore, useLocaleStore } from '@/stores'
+import type { SupportLocale } from '@/locales'
 import {
-  Sparkles,
   LayoutDashboard,
   ListTodo,
   Upload,
@@ -215,21 +330,29 @@ import {
   Users,
   ChevronDown,
   LogOut,
+  BookOpen,
+  Languages,
+  Check,
 } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
+const { locale } = useI18n()
 const queueStore = useQueueStore()
 const authStore = useAuthStore()
+const localeStore = useLocaleStore()
 const mobileMenuOpen = ref(false)
 const userMenuOpen = ref(false)
+const langMenuOpen = ref(false)
 const userMenuRef = ref<HTMLElement | null>(null)
+const langMenuRef = ref<HTMLElement | null>(null)
 
 const navItems = [
-  { name: '仪表盘', path: '/', icon: LayoutDashboard },
-  { name: '任务列表', path: '/tasks', icon: ListTodo },
-  { name: '提交任务', path: '/tasks/submit', icon: Upload },
-  { name: '队列管理', path: '/queue', icon: Settings },
+  { i18nKey: 'nav.dashboard', path: '/', icon: LayoutDashboard },
+  { i18nKey: 'nav.taskList', path: '/tasks', icon: ListTodo },
+  { i18nKey: 'nav.submitTask', path: '/tasks/submit', icon: Upload },
+  { i18nKey: 'nav.queueManagement', path: '/queue', icon: Settings },
+  { i18nKey: 'nav.apiDocs', path: '/api-docs', icon: BookOpen },
 ]
 
 const activeClass = 'text-primary-600 border-b-2 border-primary-600'
@@ -238,10 +361,15 @@ const activeMobileClass = 'bg-primary-50 text-primary-600'
 const inactiveMobileClass = 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
 
 function isActive(path: string): boolean {
+  // 首页特殊处理：只有完全匹配才激活
   if (path === '/') {
     return route.path === '/'
   }
-  return route.path.startsWith(path)
+
+  // 其他路径：精确匹配才激活
+  // 这样 /tasks 只匹配 /tasks，不会匹配 /tasks/submit
+  // 而 /tasks/submit 会精确匹配 /tasks/submit
+  return route.path === path
 }
 
 function roleLabel(role?: string) {
@@ -257,6 +385,13 @@ function refreshStats() {
   queueStore.fetchStats()
 }
 
+// 切换语言
+function handleChangeLocale(newLocale: SupportLocale) {
+  localeStore.setLocale(newLocale)
+  locale.value = newLocale
+  langMenuOpen.value = false
+}
+
 // 退出登录
 function handleLogout() {
   userMenuOpen.value = false
@@ -264,10 +399,13 @@ function handleLogout() {
   router.push('/login')
 }
 
-// 点击外部关闭用户菜单
+// 点击外部关闭菜单
 function handleClickOutside(event: MouseEvent) {
   if (userMenuRef.value && !userMenuRef.value.contains(event.target as Node)) {
     userMenuOpen.value = false
+  }
+  if (langMenuRef.value && !langMenuRef.value.contains(event.target as Node)) {
+    langMenuOpen.value = false
   }
 }
 

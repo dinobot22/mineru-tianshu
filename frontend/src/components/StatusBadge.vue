@@ -7,21 +7,17 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { TaskStatus } from '@/api/types'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   status: TaskStatus
 }>()
 
 const statusText = computed(() => {
-  const statusMap: Record<TaskStatus, string> = {
-    pending: '等待中',
-    processing: '处理中',
-    completed: '已完成',
-    failed: '失败',
-    cancelled: '已取消',
-  }
-  return statusMap[props.status] || props.status
+  return t(`status.${props.status}`)
 })
 
 const badgeClass = computed(() => {

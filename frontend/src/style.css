@@ -2,27 +2,84 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 自定义样式 */
+/* 自定义样式 - 现代化、大气、美观 */
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900;
+    @apply bg-gradient-to-br from-gray-50 to-gray-100 text-gray-900 antialiased;
+  }
+
+  * {
+    @apply transition-colors duration-200;
   }
 }
 
 @layer components {
+  /* 按钮样式 - 更大气、更现代 */
   .btn {
-    @apply px-4 py-2 rounded-lg font-medium transition-colors;
+    @apply px-5 py-2.5 rounded-xl font-semibold transition-all duration-200 shadow-sm hover:shadow-md active:scale-95;
   }
 
   .btn-primary {
-    @apply bg-primary-600 text-white hover:bg-primary-700;
+    @apply bg-gradient-to-r from-primary-600 to-primary-700 text-white hover:from-primary-700 hover:to-primary-800 shadow-primary-500/20;
   }
 
   .btn-secondary {
-    @apply bg-gray-200 text-gray-800 hover:bg-gray-300;
+    @apply bg-white text-gray-700 border-2 border-gray-300 hover:bg-gray-50 hover:border-gray-400;
   }
 
+  /* 卡片样式 - 更有层次感，响应式内边距 */
   .card {
-    @apply bg-white rounded-lg shadow-md p-6;
+    @apply bg-white rounded-2xl shadow-lg hover:shadow-xl p-4 sm:p-6 lg:p-8 border border-gray-100/50 backdrop-blur-sm;
+  }
+
+  /* 隐藏滚动条但保持滚动功能 */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 输入框样式 - 更现代 */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  select,
+  textarea {
+    @apply rounded-xl border-2 border-gray-200 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 transition-all duration-200;
+  }
+
+  /* 表格样式 - 更清晰 */
+  table {
+    @apply w-full border-separate border-spacing-0;
+  }
+
+  table thead {
+    @apply bg-gradient-to-r from-gray-50 to-gray-100;
+  }
+
+  table thead th {
+    @apply px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider first:rounded-tl-xl last:rounded-tr-xl;
+  }
+
+  table tbody tr {
+    @apply hover:bg-gray-50/50 transition-colors duration-150;
+  }
+
+  table tbody td {
+    @apply px-6 py-4 border-b border-gray-100;
+  }
+
+  /* 徽章样式 - 更精致 */
+  .badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold shadow-sm;
+  }
+
+  /* 链接样式 - 更突出 */
+  a {
+    @apply transition-all duration-200;
   }
 }

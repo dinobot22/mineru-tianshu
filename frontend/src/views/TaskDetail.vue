@@ -7,18 +7,18 @@
         class="text-sm text-gray-600 hover:text-gray-900 flex items-center"
       >
         <ArrowLeft class="w-4 h-4 mr-1" />
-        返回
+        {{ $t('common.back') }}
       </button>
     </div>
 
     <!-- 页面标题 -->
     <div class="mb-6">
-      <h1 class="text-2xl font-bold text-gray-900">任务详情</h1>
-      <p class="mt-1 text-sm text-gray-600">查看任务状态和解析结果</p>
+      <h1 class="text-2xl font-bold text-gray-900">{{ $t('task.taskDetail') }}</h1>
+      <p class="mt-1 text-sm text-gray-600">{{ $t('task.taskDetail') }}</p>
     </div>
 
     <div v-if="loading && !task" class="text-center py-12">
-      <LoadingSpinner size="lg" text="加载中..." />
+      <LoadingSpinner size="lg" :text="$t('common.loading')" />
     </div>
 
     <div v-else-if="error" class="card bg-red-50 border-red-200">
@@ -32,49 +32,49 @@
       <!-- 基本信息卡片 -->
       <div class="card">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-semibold text-gray-900">基本信息</h2>
+          <h2 class="text-lg font-semibold text-gray-900">{{ $t('task.basicInfo') }}</h2>
           <StatusBadge :status="task.status" />
         </div>
 
         <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <dt class="text-sm font-medium text-gray-500">任务 ID</dt>
+            <dt class="text-sm font-medium text-gray-500">{{ $t('task.taskId') }}</dt>
             <dd class="mt-1 text-sm text-gray-900 font-mono">{{ task.task_id }}</dd>
           </div>
           <div>
-            <dt class="text-sm font-medium text-gray-500">文件名</dt>
+            <dt class="text-sm font-medium text-gray-500">{{ $t('task.fileName') }}</dt>
             <dd class="mt-1 text-sm text-gray-900">{{ task.file_name }}</dd>
           </div>
           <div>
-            <dt class="text-sm font-medium text-gray-500">处理后端</dt>
+            <dt class="text-sm font-medium text-gray-500">{{ $t('task.processingBackend') }}</dt>
             <dd class="mt-1 text-sm text-gray-900">{{ formatBackendName(task.backend) }}</dd>
           </div>
           <div>
-            <dt class="text-sm font-medium text-gray-500">优先级</dt>
+            <dt class="text-sm font-medium text-gray-500">{{ $t('task.priority') }}</dt>
             <dd class="mt-1 text-sm text-gray-900">{{ task.priority }}</dd>
           </div>
           <div>
-            <dt class="text-sm font-medium text-gray-500">创建时间</dt>
+            <dt class="text-sm font-medium text-gray-500">{{ $t('task.createdAt') }}</dt>
             <dd class="mt-1 text-sm text-gray-900">{{ formatDateTime(task.created_at) }}</dd>
           </div>
           <div>
-            <dt class="text-sm font-medium text-gray-500">开始时间</dt>
+            <dt class="text-sm font-medium text-gray-500">{{ $t('task.startedAt') }}</dt>
             <dd class="mt-1 text-sm text-gray-900">{{ formatDateTime(task.started_at) }}</dd>
           </div>
           <div>
-            <dt class="text-sm font-medium text-gray-500">完成时间</dt>
+            <dt class="text-sm font-medium text-gray-500">{{ $t('task.completedAt') }}</dt>
             <dd class="mt-1 text-sm text-gray-900">{{ formatDateTime(task.completed_at) }}</dd>
           </div>
           <div>
-            <dt class="text-sm font-medium text-gray-500">Worker ID</dt>
+            <dt class="text-sm font-medium text-gray-500">{{ $t('task.workerId') }}</dt>
             <dd class="mt-1 text-sm text-gray-900 font-mono">{{ task.worker_id || '-' }}</dd>
           </div>
           <div v-if="task.started_at && task.completed_at">
-            <dt class="text-sm font-medium text-gray-500">处理时长</dt>
+            <dt class="text-sm font-medium text-gray-500">{{ $t('task.processingTime') }}</dt>
             <dd class="mt-1 text-sm text-gray-900">{{ formatDuration(task.started_at, task.completed_at) }}</dd>
           </div>
           <div>
-            <dt class="text-sm font-medium text-gray-500">重试次数</dt>
+            <dt class="text-sm font-medium text-gray-500">{{ $t('task.retryCount') }}</dt>
             <dd class="mt-1 text-sm text-gray-900">{{ task.retry_count }}</dd>
           </div>
         </dl>
@@ -84,7 +84,7 @@
           <div class="flex items-start">
             <AlertCircle class="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
             <div class="ml-3">
-              <h4 class="text-sm font-medium text-red-800">错误信息</h4>
+              <h4 class="text-sm font-medium text-red-800">{{ $t('task.errorMessage') }}</h4>
               <p class="mt-1 text-sm text-red-700 font-mono">{{ task.error_message }}</p>
             </div>
           </div>
@@ -99,7 +99,7 @@
             class="btn btn-secondary flex items-center"
           >
             <X class="w-4 h-4 mr-2" />
-            取消任务
+            {{ $t('task.cancelTask') }}
           </button>
           <button
             v-if="task.status === 'completed' && task.data"
@@ -107,7 +107,7 @@
             class="btn btn-primary flex items-center"
           >
             <Download class="w-4 h-4 mr-2" />
-            下载 Markdown
+            {{ $t('task.downloadMarkdown') }}
           </button>
           <button
             @click="() => refreshTask()"
@@ -115,14 +115,14 @@
             class="btn btn-secondary flex items-center"
           >
             <RefreshCw :class="{ 'animate-spin': loading }" class="w-4 h-4 mr-2" />
-            刷新
+            {{ $t('common.refresh') }}
           </button>
         </div>
       </div>
 
       <!-- 状态时间轴 -->
       <div class="card">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">状态时间轴</h2>
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">{{ $t('task.statusTimeline') }}</h2>
         <div class="relative">
           <div class="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200"></div>
 
@@ -133,7 +133,7 @@
                 <CheckCircle class="w-5 h-5 text-green-600" />
               </div>
               <div class="ml-12">
-                <h3 class="text-sm font-medium text-gray-900">任务创建</h3>
+                <h3 class="text-sm font-medium text-gray-900">{{ $t('task.taskCreated') }}</h3>
                 <p class="mt-1 text-sm text-gray-500">{{ formatDateTime(task.created_at) }}</p>
               </div>
             </div>
@@ -148,7 +148,7 @@
                 />
               </div>
               <div class="ml-12">
-                <h3 class="text-sm font-medium text-gray-900">开始处理</h3>
+                <h3 class="text-sm font-medium text-gray-900">{{ $t('task.startProcessing') }}</h3>
                 <p class="mt-1 text-sm text-gray-500">{{ formatDateTime(task.started_at) }}</p>
               </div>
             </div>
@@ -167,7 +167,7 @@
               </div>
               <div class="ml-12">
                 <h3 class="text-sm font-medium text-gray-900">
-                  {{ task.status === 'completed' ? '完成' : task.status === 'failed' ? '失败' : '待完成' }}
+                  {{ task.status === 'completed' ? $t('task.completed') : task.status === 'failed' ? $t('task.failed') : $t('task.waitingToComplete') }}
                 </h3>
                 <p class="mt-1 text-sm text-gray-500">{{ formatDateTime(task.completed_at) }}</p>
               </div>
@@ -179,7 +179,7 @@
       <!-- Markdown 预览 -->
       <div v-if="task.status === 'completed' && task.data" class="card">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-semibold text-gray-900">解析结果</h2>
+          <h2 class="text-lg font-semibold text-gray-900">{{ $t('task.parseResult') }}</h2>
           <div class="flex items-center gap-4">
             <!-- Format Tabs (for all backends that support JSON) -->
             <div v-if="task.data.json_available !== false" class="flex items-center gap-2">
@@ -222,7 +222,7 @@
         <div v-show="activeTab === 'markdown'">
           <MarkdownViewer v-if="task.data.content" :content="task.data.content" />
           <div v-else class="text-center py-8 text-gray-500">
-            <p>暂无 Markdown 内容</p>
+            <p>{{ $t('task.noMarkdownContent') }}</p>
           </div>
         </div>
 
@@ -231,7 +231,7 @@
           <!-- 加载中 -->
           <div v-if="switchingFormat" class="flex items-center justify-center py-12">
             <Loader class="w-8 h-8 text-primary-600 animate-spin" />
-            <span class="ml-3 text-gray-600">正在加载 JSON 数据...</span>
+            <span class="ml-3 text-gray-600">{{ $t('task.loadingJsonData') }}</span>
           </div>
 
           <!-- JSON 内容 -->
@@ -246,8 +246,8 @@
             <div class="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
               <FileText class="w-8 h-8 text-gray-400" />
             </div>
-            <p class="text-gray-600 mb-2">JSON 格式不可用</p>
-            <p class="text-sm text-gray-500">当前解析引擎不支持 JSON 输出</p>
+            <p class="text-gray-600 mb-2">{{ $t('task.jsonNotAvailable') }}</p>
+            <p class="text-sm text-gray-500">{{ $t('task.jsonNotSupported') }}</p>
           </div>
         </div>
       </div>
@@ -257,8 +257,8 @@
         <div class="flex items-center">
           <Loader class="w-6 h-6 text-yellow-600 animate-spin" />
           <div class="ml-3">
-            <h3 class="text-sm font-medium text-yellow-800">任务处理中</h3>
-            <p class="mt-1 text-sm text-yellow-700">页面会自动刷新，请稍候...</p>
+            <h3 class="text-sm font-medium text-yellow-800">{{ $t('task.taskProcessing') }}</h3>
+            <p class="mt-1 text-sm text-yellow-700">{{ $t('task.autoRefresh') }}</p>
           </div>
         </div>
       </div>
@@ -268,8 +268,8 @@
         <div class="flex items-center">
           <Clock class="w-6 h-6 text-gray-600" />
           <div class="ml-3">
-            <h3 class="text-sm font-medium text-gray-800">任务等待中</h3>
-            <p class="mt-1 text-sm text-gray-700">任务正在队列中等待处理...</p>
+            <h3 class="text-sm font-medium text-gray-800">{{ $t('task.taskWaiting') }}</h3>
+            <p class="mt-1 text-sm text-gray-700">{{ $t('task.waitingInQueue') }}</p>
           </div>
         </div>
       </div>
@@ -280,8 +280,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useTaskStore } from '@/stores'
 
+const { t: $t } = useI18n()
 const activeTab = ref<'markdown' | 'json'>('markdown')
 const switchingFormat = ref(false)
 
@@ -321,7 +323,7 @@ async function refreshTask(format: 'markdown' | 'json' | 'both' = 'markdown') {
   try {
     await taskStore.fetchTaskStatus(taskId.value, false, format)
   } catch (err: any) {
-    error.value = err.message || '加载任务失败'
+    error.value = err.message || $t('task.loadFailed')
   } finally {
     loading.value = false
   }
@@ -351,14 +353,14 @@ async function switchTab(tab: 'markdown' | 'json') {
 }
 
 async function handleCancel() {
-  if (!confirm('确定要取消此任务吗？')) return
+  if (!confirm($t('task.confirmCancel'))) return
 
   cancelling.value = true
   try {
     await taskStore.cancelTask(taskId.value)
     await refreshTask()
   } catch (err: any) {
-    alert(`取消失败: ${err.message}`)
+    alert(`${$t('task.cancelFailed')}: ${err.message}`)
   } finally {
     cancelling.value = false
   }

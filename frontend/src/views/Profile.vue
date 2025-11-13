@@ -1,27 +1,27 @@
 <template>
   <div class="max-w-4xl mx-auto">
-    <h1 class="text-3xl font-bold text-gray-900 mb-8">个人资料</h1>
+    <h1 class="text-3xl font-bold text-gray-900 mb-8">{{ $t('profile.title') }}</h1>
 
     <!-- 用户信息卡片 -->
     <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-      <h2 class="text-xl font-semibold text-gray-900 mb-4">基本信息</h2>
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">{{ $t('profile.title') }}</h2>
 
       <div class="space-y-4">
         <!-- 用户名 -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+          <label class="block text-sm font-medium text-gray-700 mb-1">{{ $t('profile.username') }}</label>
           <input
             type="text"
             :value="authStore.user?.username"
             disabled
             class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg text-gray-500 cursor-not-allowed"
           />
-          <p class="mt-1 text-xs text-gray-500">用户名无法修改</p>
+          <p class="mt-1 text-xs text-gray-500">{{ $t('profile.usernameCannotChange') }}</p>
         </div>
 
         <!-- 邮箱 -->
         <div>
-          <label for="email" class="block text-sm font-medium text-gray-700 mb-1">邮箱</label>
+          <label for="email" class="block text-sm font-medium text-gray-700 mb-1">{{ $t('profile.email') }}</label>
           <input
             id="email"
             v-model="form.email"
@@ -32,7 +32,7 @@
 
         <!-- 全名 -->
         <div>
-          <label for="full_name" class="block text-sm font-medium text-gray-700 mb-1">全名</label>
+          <label for="full_name" class="block text-sm font-medium text-gray-700 mb-1">{{ $t('profile.fullName') }}</label>
           <input
             id="full_name"
             v-model="form.full_name"
@@ -43,7 +43,7 @@
 
         <!-- 角色 -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">角色</label>
+          <label class="block text-sm font-medium text-gray-700 mb-1">{{ $t('profile.role') }}</label>
           <div class="flex items-center">
             <span
               :class="{
@@ -65,7 +65,7 @@
             :disabled="authStore.loading"
             class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            保存修改
+            {{ $t('profile.saveChanges') }}
           </button>
         </div>
       </div>
@@ -73,32 +73,32 @@
 
     <!-- 账户信息 -->
     <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-      <h2 class="text-xl font-semibold text-gray-900 mb-4">账户信息</h2>
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">{{ $t('profile.accountInfo') }}</h2>
 
       <div class="space-y-3 text-sm">
         <div class="flex justify-between">
-          <span class="text-gray-600">用户 ID:</span>
+          <span class="text-gray-600">{{ $t('profile.userId') }}:</span>
           <span class="font-mono text-gray-900">{{ authStore.user?.user_id }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="text-gray-600">创建时间:</span>
+          <span class="text-gray-600">{{ $t('profile.createdAt') }}:</span>
           <span class="text-gray-900">{{ formatDate(authStore.user?.created_at) }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="text-gray-600">最后登录:</span>
-          <span class="text-gray-900">{{ formatDate(authStore.user?.last_login) || '从未登录' }}</span>
+          <span class="text-gray-600">{{ $t('profile.lastLogin') }}:</span>
+          <span class="text-gray-900">{{ formatDate(authStore.user?.last_login) || $t('profile.neverLoggedIn') }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="text-gray-600">账户状态:</span>
+          <span class="text-gray-600">{{ $t('profile.accountStatus') }}:</span>
           <span
             :class="authStore.user?.is_active ? 'text-green-600' : 'text-red-600'"
             class="font-medium"
           >
-            {{ authStore.user?.is_active ? '激活' : '已禁用' }}
+            {{ authStore.user?.is_active ? $t('profile.active') : $t('profile.disabled') }}
           </span>
         </div>
         <div v-if="authStore.user?.is_sso" class="flex justify-between">
-          <span class="text-gray-600">登录方式:</span>
+          <span class="text-gray-600">{{ $t('profile.loginMethod') }}:</span>
           <span class="text-gray-900">SSO ({{ authStore.user?.sso_provider }})</span>
         </div>
       </div>
@@ -113,10 +113,12 @@
 
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores'
 import { formatDate } from '@/utils/format'
 import APIKeyManager from '@/components/APIKeyManager.vue'
 
+const { t } = useI18n()
 const authStore = useAuthStore()
 
 const form = reactive({
@@ -137,12 +139,12 @@ watch(
 )
 
 function roleLabel(role?: string) {
-  const labels = {
-    admin: '管理员',
-    manager: '管理者',
-    user: '普通用户',
+  const roleMap: Record<string, string> = {
+    admin: t('profile.roleAdmin'),
+    manager: t('profile.roleManager'),
+    user: t('profile.roleUser'),
   }
-  return labels[role as keyof typeof labels] || role
+  return roleMap[role || ''] || role
 }
 
 async function handleUpdate() {

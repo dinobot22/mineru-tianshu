@@ -39,6 +39,12 @@ app = FastAPI(
     title="MinerU Tianshu API",
     description="天枢 - 企业级 AI 数据预处理平台 | 支持文档、图片、音频、视频等多模态数据处理 | 企业级认证授权",
     version="2.0.0",
+    servers=[
+        {
+            "url": "http://localhost:8000",
+            "description": "直接访问后端（推荐用于 API 测试）",
+        },
+    ],
 )
 
 # 添加 CORS 中间件
@@ -225,7 +231,7 @@ def process_markdown_images(md_content: str, image_dir: Path, result_path: str, 
         return md_content
 
 
-@app.get("/")
+@app.get("/", tags=["系统信息"])
 async def root():
     """API根路径"""
     return {
@@ -237,7 +243,7 @@ async def root():
     }
 
 
-@app.post("/api/v1/tasks/submit")
+@app.post("/api/v1/tasks/submit", tags=["任务管理"])
 async def submit_task(
     file: UploadFile = File(..., description="文件: PDF/图片/Office/HTML/音频/视频等多种格式"),
     backend: str = Form(
@@ -328,7 +334,7 @@ async def submit_task(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/tasks/{task_id}")
+@app.get("/api/v1/tasks/{task_id}", tags=["任务管理"])
 async def get_task_status(
     task_id: str,
     upload_images: bool = Query(False, description="是否上传图片到MinIO并替换链接（仅当任务完成时有效）"),
@@ -509,7 +515,7 @@ async def get_task_status(
     return response
 
 
-@app.delete("/api/v1/tasks/{task_id}")
+@app.delete("/api/v1/tasks/{task_id}", tags=["任务管理"])
 async def cancel_task(task_id: str, current_user: User = Depends(get_current_active_user)):
     """
     取消任务（仅限 pending 状态）
@@ -540,7 +546,7 @@ async def cancel_task(task_id: str, current_user: User = Depends(get_current_act
         raise HTTPException(status_code=400, detail=f"Cannot cancel task in {task['status']} status")
 
 
-@app.get("/api/v1/queue/stats")
+@app.get("/api/v1/queue/stats", tags=["队列管理"])
 async def get_queue_stats(current_user: User = Depends(require_permission(Permission.QUEUE_VIEW))):
     """
     获取队列统计信息
@@ -558,7 +564,7 @@ async def get_queue_stats(current_user: User = Depends(require_permission(Permis
     }
 
 
-@app.get("/api/v1/queue/tasks")
+@app.get("/api/v1/queue/tasks", tags=["队列管理"])
 async def list_tasks(
     status: Optional[str] = Query(None, description="筛选状态: pending/processing/completed/failed"),
     limit: int = Query(100, description="返回数量限制", le=1000),
@@ -615,7 +621,7 @@ async def list_tasks(
     return {"success": True, "count": len(tasks), "tasks": tasks, "can_view_all": can_view_all}
 
 
-@app.post("/api/v1/admin/cleanup")
+@app.post("/api/v1/admin/cleanup", tags=["系统管理"])
 async def cleanup_old_tasks(
     days: int = Query(7, description="清理N天前的任务"),
     current_user: User = Depends(require_permission(Permission.QUEUE_MANAGE)),
@@ -638,7 +644,7 @@ async def cleanup_old_tasks(
     }
 
 
-@app.post("/api/v1/admin/reset-stale")
+@app.post("/api/v1/admin/reset-stale", tags=["系统管理"])
 async def reset_stale_tasks(
     timeout_minutes: int = Query(60, description="超时时间（分钟）"),
     current_user: User = Depends(require_permission(Permission.QUEUE_MANAGE)),
@@ -659,7 +665,7 @@ async def reset_stale_tasks(
     }
 
 
-@app.get("/api/v1/engines")
+@app.get("/api/v1/engines", tags=["系统信息"])
 async def list_engines():
     """
     列出所有可用的处理引擎
@@ -745,7 +751,7 @@ async def list_engines():
     }
 
 
-@app.get("/api/v1/health")
+@app.get("/api/v1/health", tags=["系统信息"])
 async def health_check():
     """
     健康检查接口
@@ -771,7 +777,7 @@ async def health_check():
 from urllib.parse import unquote
 
 
-@app.get("/v1/files/output/{file_path:path}")
+@app.get("/v1/files/output/{file_path:path}", tags=["文件服务"])
 async def serve_output_file(file_path: str):
     """
     提供输出文件的访问服务
