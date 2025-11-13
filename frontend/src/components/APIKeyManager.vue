@@ -73,7 +73,7 @@
       @click.self="showCreateDialog = false"
     >
       <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ $t('apiKey.createNewUser') }}</h3>
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ $t('apiKey.createNew') }}</h3>
 
         <form @submit.prevent="handleCreate" class="space-y-4">
           <div>
