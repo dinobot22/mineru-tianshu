@@ -39,12 +39,7 @@ app = FastAPI(
     title="MinerU Tianshu API",
     description="天枢 - 企业级 AI 数据预处理平台 | 支持文档、图片、音频、视频等多模态数据处理 | 企业级认证授权",
     version="2.0.0",
-    servers=[
-        {
-            "url": "http://localhost:8000",
-            "description": "直接访问后端（推荐用于 API 测试）",
-        },
-    ],
+    # 不设置 servers，让 FastAPI 自动根据请求的 Host 生成
 )
 
 # 添加 CORS 中间件

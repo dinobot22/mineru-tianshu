@@ -16,6 +16,7 @@ from .models import (
     UserCreate,
     UserUpdate,
     UserLogin,
+    PasswordChange,
     Token,
     APIKeyCreate,
     APIKeyResponse,
@@ -119,6 +120,40 @@ async def update_current_user(
     updated_user = auth_db.get_user_by_id(current_user.user_id)
     logger.info(f"✅ User updated: {updated_user.username}")
     return updated_user
+
+
+@router.post("/me/change-password")
+async def change_password(
+    password_data: PasswordChange,
+    current_user: User = Depends(get_current_active_user),
+    auth_db: AuthDB = Depends(get_auth_db),
+):
+    """
+    修改当前用户密码
+
+    用户需要提供旧密码和新密码。SSO 用户不能修改密码。
+    """
+    try:
+        success = auth_db.change_password(
+            current_user.user_id,
+            password_data.old_password,
+            password_data.new_password,
+        )
+
+        if success:
+            logger.info(f"✅ Password changed: {current_user.username}")
+            return {"success": True, "message": "Password changed successfully"}
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to change password")
+
+    except ValueError as e:
+        error_message = str(e)
+        if "Incorrect old password" in error_message:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect old password")
+        elif "SSO users" in error_message:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="SSO users cannot change password")
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_message)
 
 
 # ==================== API Key 管理 ====================

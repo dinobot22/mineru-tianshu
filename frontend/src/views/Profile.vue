@@ -71,6 +71,74 @@
       </div>
     </div>
 
+    <!-- 修改密码 -->
+    <div v-if="!authStore.user?.is_sso" class="bg-white rounded-lg shadow-md p-6 mb-6">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">{{ $t('profile.changePassword') }}</h2>
+
+      <div class="space-y-4">
+        <!-- 旧密码 -->
+        <div>
+          <label for="old_password" class="block text-sm font-medium text-gray-700 mb-1">
+            {{ $t('profile.oldPassword') }} *
+          </label>
+          <input
+            id="old_password"
+            v-model="passwordForm.oldPassword"
+            type="password"
+            required
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            :placeholder="$t('profile.oldPasswordPlaceholder')"
+          />
+        </div>
+
+        <!-- 新密码 -->
+        <div>
+          <label for="new_password" class="block text-sm font-medium text-gray-700 mb-1">
+            {{ $t('profile.newPassword') }} *
+          </label>
+          <input
+            id="new_password"
+            v-model="passwordForm.newPassword"
+            type="password"
+            required
+            minlength="8"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            :placeholder="$t('profile.newPasswordPlaceholder')"
+          />
+          <p class="mt-1 text-xs text-gray-500">{{ $t('profile.passwordRequirement') }}</p>
+        </div>
+
+        <!-- 确认新密码 -->
+        <div>
+          <label for="confirm_password" class="block text-sm font-medium text-gray-700 mb-1">
+            {{ $t('profile.confirmNewPassword') }} *
+          </label>
+          <input
+            id="confirm_password"
+            v-model="passwordForm.confirmPassword"
+            type="password"
+            required
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            :placeholder="$t('profile.confirmPasswordPlaceholder')"
+          />
+          <p v-if="passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword" class="mt-1 text-xs text-red-600">
+            {{ $t('profile.passwordMismatch') }}
+          </p>
+        </div>
+
+        <!-- 修改密码按钮 -->
+        <div class="flex justify-end">
+          <button
+            @click="handleChangePassword"
+            :disabled="authStore.loading || !isPasswordFormValid"
+            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {{ $t('profile.changePasswordButton') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 账户信息 -->
     <div class="bg-white rounded-lg shadow-md p-6 mb-6">
       <h2 class="text-xl font-semibold text-gray-900 mb-4">{{ $t('profile.accountInfo') }}</h2>
@@ -112,7 +180,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { reactive, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores'
 import { formatDate } from '@/utils/format'
@@ -126,6 +194,12 @@ const form = reactive({
   full_name: authStore.user?.full_name || '',
 })
 
+const passwordForm = reactive({
+  oldPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+})
+
 // 监听用户信息变化
 watch(
   () => authStore.user,
@@ -137,6 +211,16 @@ watch(
   },
   { immediate: true }
 )
+
+// 密码表单验证
+const isPasswordFormValid = computed(() => {
+  return (
+    passwordForm.oldPassword.length > 0 &&
+    passwordForm.newPassword.length >= 8 &&
+    passwordForm.confirmPassword.length > 0 &&
+    passwordForm.newPassword === passwordForm.confirmPassword
+  )
+})
 
 function roleLabel(role?: string) {
   const roleMap: Record<string, string> = {
@@ -152,5 +236,16 @@ async function handleUpdate() {
     email: form.email,
     full_name: form.full_name || undefined,
   })
+}
+
+async function handleChangePassword() {
+  const success = await authStore.changePassword(passwordForm.oldPassword, passwordForm.newPassword)
+
+  if (success) {
+    // 清空表单
+    passwordForm.oldPassword = ''
+    passwordForm.newPassword = ''
+    passwordForm.confirmPassword = ''
+  }
 }
 </script>

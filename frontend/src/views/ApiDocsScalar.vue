@@ -36,7 +36,7 @@ import { ApiReference } from '@scalar/api-reference'
 import { useAuthStore } from '@/stores'
 import { useI18n } from 'vue-i18n'
 
-// 引入 Scalar 样式
+// 导入 Scalar 样式 - 但会在页面底部添加样式覆盖来保护我们的样式
 import '@scalar/api-reference/style.css'
 
 const authStore = useAuthStore()
@@ -46,14 +46,6 @@ const { locale, t } = useI18n()
 const isLoading = ref(true)
 const loadError = ref('')
 const openApiSpec = ref<any>(null)
-
-// 服务器列表（仅用于显示，实际由 OpenAPI 规范定义）
-const servers = [
-  {
-    url: 'http://localhost:8000',
-    description: '直接访问后端（推荐用于 API 测试）',
-  },
-]
 
 // API 文档翻译字典（中文 -> 英文）
 const apiTranslations: Record<string, string> = {
@@ -333,11 +325,17 @@ const scalarConfig = computed(() => ({
     },
   },
 
-  // 服务器配置（将由 OpenAPI 规范自动提供）
-  servers: servers.map(s => ({
-    url: s.url,
-    description: s.description,
-  })),
+  // 服务器配置 - 提供前端代理和后端直连两种方式
+  servers: [
+    {
+      url: window.location.origin + '/api',
+      description: '通过前端代理访问（推荐）',
+    },
+    {
+      url: `${window.location.protocol}//${window.location.hostname}:8000`,
+      description: '直接访问后端（用于 API 测试）',
+    },
+  ],
 
   // 其他配置
   searchHotKey: 'k',
@@ -369,6 +367,8 @@ onMounted(async () => {
   width: 100%;
   height: calc(100vh - 140px);
   position: relative;
+  /* 隔离 Scalar 样式，防止污染全局 */
+  isolation: isolate;
 }
 
 /* 加载状态样式 */
@@ -454,5 +454,123 @@ onMounted(async () => {
 
 .retry-button:hover {
   background: #2563eb;
+}
+</style>
+
+<style>
+/* 全局样式保护：覆盖 Scalar 可能污染的样式 */
+/* 使用高优先级选择器确保应用样式不被破坏 */
+
+/* 保护 Tailwind 蓝色按钮 */
+button.bg-blue-600,
+a.bg-blue-600,
+.bg-blue-600 {
+  background-color: rgb(37 99 235) !important;
+  color: white !important;
+}
+
+button.bg-blue-500,
+a.bg-blue-500,
+.bg-blue-500 {
+  background-color: rgb(59 130 246) !important;
+  color: white !important;
+}
+
+button.bg-blue-700,
+a.bg-blue-700,
+.bg-blue-700 {
+  background-color: rgb(29 78 216) !important;
+  color: white !important;
+}
+
+button.hover\:bg-blue-700:hover,
+a.hover\:bg-blue-700:hover,
+.hover\:bg-blue-700:hover {
+  background-color: rgb(29 78 216) !important;
+}
+
+button.hover\:bg-blue-600:hover,
+a.hover\:bg-blue-600:hover,
+.hover\:bg-blue-600:hover {
+  background-color: rgb(37 99 235) !important;
+}
+
+/* 保护 btn-primary 类 */
+.btn-primary {
+  background: linear-gradient(to right, rgb(37 99 235), rgb(29 78 216)) !important;
+  color: white !important;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(to right, rgb(29 78 216), rgb(30 64 175)) !important;
+}
+
+/* 保护头像和其他圆形元素 */
+.rounded-full {
+  border-radius: 9999px !important;
+}
+
+/* 保护文本颜色 */
+.text-white {
+  color: white !important;
+}
+
+/* 保护背景渐变 */
+.bg-gradient-to-r {
+  background-image: linear-gradient(to right, var(--tw-gradient-stops)) !important;
+}
+
+.bg-gradient-to-br {
+  background-image: linear-gradient(to bottom right, var(--tw-gradient-stops)) !important;
+}
+
+/* 保护 from-blue-* 和 to-blue-* 渐变颜色 */
+.from-blue-500 {
+  --tw-gradient-from: rgb(59 130 246) !important;
+  --tw-gradient-to: rgb(59 130 246 / 0) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.from-blue-600 {
+  --tw-gradient-from: rgb(37 99 235) !important;
+  --tw-gradient-to: rgb(37 99 235 / 0) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.to-blue-500 {
+  --tw-gradient-to: rgb(59 130 246) !important;
+}
+
+.to-blue-600 {
+  --tw-gradient-to: rgb(37 99 235) !important;
+}
+
+.to-blue-700 {
+  --tw-gradient-to: rgb(29 78 216) !important;
+}
+
+.to-blue-800 {
+  --tw-gradient-to: rgb(30 64 175) !important;
+}
+
+/* 保护其他渐变颜色（用于角色标签） */
+.from-red-500 {
+  --tw-gradient-from: rgb(239 68 68) !important;
+  --tw-gradient-to: rgb(239 68 68 / 0) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.to-red-600 {
+  --tw-gradient-to: rgb(220 38 38) !important;
+}
+
+.from-yellow-500 {
+  --tw-gradient-from: rgb(234 179 8) !important;
+  --tw-gradient-to: rgb(234 179 8 / 0) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.to-yellow-600 {
+  --tw-gradient-to: rgb(202 138 4) !important;
 }
 </style>

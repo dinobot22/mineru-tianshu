@@ -158,6 +158,44 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
+   * 修改密码
+   */
+  async function changePassword(oldPassword: string, newPassword: string) {
+    try {
+      loading.value = true
+      await authApi.changePassword({
+        old_password: oldPassword,
+        new_password: newPassword,
+      })
+      showToast({ message: '密码修改成功', type: 'success' })
+      return true
+    } catch (error: any) {
+      console.error('Change password error:', error)
+
+      let message = '密码修改失败'
+      if (error.response) {
+        const status = error.response.status
+        const detail = error.response.data?.detail
+
+        if (status === 400 && detail?.includes('Incorrect old password')) {
+          message = '旧密码错误'
+        } else if (status === 403 && detail?.includes('SSO users')) {
+          message = 'SSO 用户不能修改密码'
+        } else if (detail) {
+          message = detail
+        }
+      } else if (error.request) {
+        message = '无法连接到服务器，请检查网络连接'
+      }
+
+      showToast({ message, type: 'error' })
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
    * 检查权限
    */
   function hasPermission(permission: string): boolean {
@@ -230,6 +268,7 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     fetchCurrentUser,
     updateProfile,
+    changePassword,
     hasPermission,
     initialize,
   }

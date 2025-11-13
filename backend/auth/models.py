@@ -128,6 +128,13 @@ class UserLogin(BaseModel):
     password: str
 
 
+class PasswordChange(BaseModel):
+    """修改密码请求"""
+
+    old_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8, max_length=100)
+
+
 class Token(BaseModel):
     """JWT Token 响应"""
 

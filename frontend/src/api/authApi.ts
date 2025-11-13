@@ -6,6 +6,7 @@ import type {
   LoginRequest,
   LoginResponse,
   RegisterRequest,
+  PasswordChangeRequest,
   User,
   APIKeyCreate,
   APIKeyResponse,
@@ -42,6 +43,13 @@ export async function getCurrentUser(): Promise<User> {
 export async function updateCurrentUser(data: Partial<User>): Promise<User> {
   const response = await apiClient.patch<User>('/api/v1/auth/me', data)
   return response.data
+}
+
+/**
+ * 修改密码
+ */
+export async function changePassword(data: PasswordChangeRequest): Promise<void> {
+  await apiClient.post('/api/v1/auth/me/change-password', data)
 }
 
 /**

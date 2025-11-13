@@ -290,6 +290,44 @@ class AuthDB:
             cursor.execute(f"UPDATE users SET {set_clause} WHERE user_id = ?", values)
             return cursor.rowcount > 0
 
+    def change_password(self, user_id: str, old_password: str, new_password: str) -> bool:
+        """
+        修改用户密码
+
+        Args:
+            user_id: 用户ID
+            old_password: 旧密码
+            new_password: 新密码
+
+        Returns:
+            bool: 修改是否成功
+
+        Raises:
+            ValueError: 旧密码错误或用户不存在
+        """
+        with self.get_cursor() as cursor:
+            # 获取用户信息
+            cursor.execute("SELECT password_hash, is_sso FROM users WHERE user_id = ?", (user_id,))
+            row = cursor.fetchone()
+
+            if not row:
+                raise ValueError("User not found")
+
+            # SSO 用户不能修改密码
+            if row["is_sso"]:
+                raise ValueError("SSO users cannot change password")
+
+            # 验证旧密码
+            password_hash = row["password_hash"]
+            if not password_hash or not self._verify_password(old_password, password_hash):
+                raise ValueError("Incorrect old password")
+
+            # 更新密码
+            new_password_hash = self._hash_password(new_password)
+            cursor.execute("UPDATE users SET password_hash = ? WHERE user_id = ?", (new_password_hash, user_id))
+
+            return cursor.rowcount > 0
+
     def delete_user(self, user_id: str) -> bool:
         """删除用户"""
         with self.get_cursor() as cursor:
