@@ -392,7 +392,7 @@ class TaskDB:
 
     def cleanup_old_task_records(self, days: int = 30):
         """
-        清理旧任务（同时删除文件和记录）
+        清理旧任务（同时删除所有相关文件和数据库记录）
 
         Args:
             days: 删除多少天前的任务
@@ -400,8 +400,13 @@ class TaskDB:
         Returns:
             int: 删除的任务记录数
 
+        清理内容：
+            - 上传的原始文件（file_path）
+            - 结果文件夹及其所有内容（result_path，包括生成的文件和中间文件）
+            - 数据库记录
+
         注意：
-            - 同时删除结果文件和数据库记录，操作不可恢复
+            - 操作不可恢复
             - 建议设置合理的保留期（如 7-30 天）
             - 由定时任务自动执行，也可通过管理接口手动触发
         """
@@ -409,10 +414,10 @@ class TaskDB:
         import shutil
 
         with self.get_cursor() as cursor:
-            # 先查询要删除的任务及其文件路径
+            # 先查询要删除的任务及其文件路径（包括上传文件和结果文件）
             cursor.execute(
                 """
-                SELECT task_id, result_path FROM tasks
+                SELECT task_id, file_path, result_path FROM tasks
                 WHERE completed_at < datetime('now', '-' || ? || ' days')
                 AND status IN ('completed', 'failed')
             """,
@@ -421,15 +426,29 @@ class TaskDB:
 
             old_tasks = cursor.fetchall()
 
-            # 删除结果文件
+            # 删除所有相关文件
             for task in old_tasks:
+                task_id = task["task_id"]
+
+                # 1. 删除上传的原始文件
+                if task["file_path"]:
+                    file_path = Path(task["file_path"])
+                    if file_path.exists() and file_path.is_file():
+                        try:
+                            file_path.unlink()
+                            logger.debug(f"Deleted upload file for task {task_id}: {file_path.name}")
+                        except Exception as e:
+                            logger.warning(f"Failed to delete upload file for task {task_id}: {e}")
+
+                # 2. 删除结果文件夹（包含所有生成的文件和中间文件）
                 if task["result_path"]:
                     result_path = Path(task["result_path"])
                     if result_path.exists() and result_path.is_dir():
                         try:
                             shutil.rmtree(result_path)
+                            logger.debug(f"Deleted result directory for task {task_id}: {result_path.name}")
                         except Exception as e:
-                            logger.warning(f"Failed to delete result files for task {task['task_id']}: {e}")
+                            logger.warning(f"Failed to delete result files for task {task_id}: {e}")
 
             # 删除数据库记录
             cursor.execute(
