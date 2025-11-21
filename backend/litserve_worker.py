@@ -217,7 +217,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         elif model_source == "modelscope":
             ## 通过环境变量配置,来让模型从modelscope平台下载, 或者从modelscope的缓存目录加载
             os.environ["MINERU_MODEL_SOURCE"] = "modelscope"
-            logger.info(f"📦 Model download source: ModelScope")
+            logger.info("📦 Model download source: ModelScope")
         else:
             logger.warning(f"⚠️  Unknown model download source: {model_source}")
 
