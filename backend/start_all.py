@@ -309,7 +309,7 @@ def main():
         "--accelerator",
         type=str,
         default="auto",
-        choices=["auto", "cuda", "cpu", "mps"],
+        choices=["auto", "cuda", "cpu"],
         help="加速器类型 (默认: auto，自动检测)",
     )
     parser.add_argument("--workers-per-device", type=int, default=1, help="每个GPU的worker数量 (默认: 1)")
