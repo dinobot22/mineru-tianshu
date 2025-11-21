@@ -21,6 +21,7 @@ from typing import Optional
 # Fix litserve MCP compatibility with mcp>=1.1.0
 # Completely disable LitServe's internal MCP to avoid conflicts with our standalone MCP Server
 import litserve as ls
+from litserve.connector import check_cuda_with_nvidia_smi
 
 try:
     # Patch LitServe's MCP module to disable it completely
@@ -115,7 +116,6 @@ else:
     logger.info("ℹ️  PaddleOCR-VL not available (optional)")
 
 # 尝试导入 SenseVoice 音频处理
-
 SENSEVOICE_AVAILABLE = importlib.util.find_spec("audio_engines") is not None
 if SENSEVOICE_AVAILABLE:
     logger.info("✅ SenseVoice audio engine available")
@@ -1075,6 +1075,27 @@ def start_litserve_workers(
         poll_interval: Worker 拉取任务的间隔（秒）
         enable_worker_loop: 是否启用 worker 自动循环拉取任务
     """
+
+    def resolve_auto_accelerator():
+        """
+        当 accelerator 设置为 "auto" 时，使用元数据及环境信息自动检测最合适的加速器类型(不直接导入torch)
+
+        Returns:
+            str: 检测到的加速器类型 ("cuda" 或 "cpu")
+        """
+        try:
+            from importlib.metadata import distribution
+
+            distribution("torch")
+            torch_is_installed = True
+        except Exception as e:
+            torch_is_installed = False
+            logger.warning(f"Torch is not installed or cannot be imported: {e}")
+
+        if torch_is_installed and check_cuda_with_nvidia_smi() > 0:
+            return "cuda"
+        return "cpu"
+
     # 如果没有指定输出目录，从环境变量读取
     if output_dir is None:
         output_dir = os.getenv("OUTPUT_PATH", "/app/output")
@@ -1083,13 +1104,13 @@ def start_litserve_workers(
     logger.info("🚀 Starting MinerU Tianshu LitServe Worker Pool")
     logger.info("=" * 60)
     logger.info(f"📂 Output Directory: {output_dir}")
-    logger.info(f"🎮 Accelerator: {accelerator}")
     logger.info(f"💾 Devices: {devices}")
     logger.info(f"👷 Workers per Device: {workers_per_device}")
     logger.info(f"🔌 Port: {port}")
     logger.info(f"🔄 Worker Loop: {'Enabled' if enable_worker_loop else 'Disabled'}")
     if enable_worker_loop:
         logger.info(f"⏱️  Poll Interval: {poll_interval}s")
+    logger.info(f"🎮 Initial Accelerator setting: {accelerator}")
     logger.info("=" * 60)
 
     # 创建 LitServe 服务器
@@ -1099,6 +1120,12 @@ def start_litserve_workers(
     MinerUWorkerAPI._enable_worker_loop = enable_worker_loop
 
     api = MinerUWorkerAPI()
+
+    if accelerator == "auto":
+        # 手动解析accelerator的具体设置
+        accelerator = resolve_auto_accelerator()
+        logger.info(f"💫 Auto-resolved Accelerator: {accelerator}")
+
     server = ls.LitServer(
         api,
         accelerator=accelerator,
@@ -1153,7 +1180,7 @@ if __name__ == "__main__":
         "--accelerator",
         type=str,
         default="auto",
-        choices=["auto", "cuda", "cpu", "mps"],
+        choices=["auto", "cuda", "cpu"],
         help="Accelerator type (default: auto)",
     )
     parser.add_argument("--workers-per-device", type=int, default=1, help="Number of workers per device (default: 1)")
