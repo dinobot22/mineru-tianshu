@@ -52,6 +52,10 @@ parameters:
         label:
           en_US: PaddleOCR VL
           zh_Hans: PaddleOCR VL
+      - value: paddleocr-vl-vllm
+        label:
+          en_US: PaddleOCR VL VLLM
+          zh_Hans: PaddleOCR VL VLLM
       - value: markitdown
         label:
           en_US: MarkItDown

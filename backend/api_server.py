@@ -706,6 +706,16 @@ async def list_engines():
             }
         )
 
+    if importlib.util.find_spec("paddleocr_vl_vllm") is not None:
+        engines["ocr"].append(
+            {
+                "name": "paddleocr-vl-vllm",
+                "display_name": "PaddleOCR-VL-VLLM",
+                "description": "基于 vLLM 的高性能 PaddleOCR 引擎",
+                "supported_formats": [".pdf", ".png", ".jpg", ".jpeg"],
+            }
+        )
+
     if importlib.util.find_spec("audio_engines") is not None:
         engines["audio"].append(
             {

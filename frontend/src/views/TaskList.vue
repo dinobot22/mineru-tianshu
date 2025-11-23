@@ -37,6 +37,7 @@
             <option value="">{{ $t('task.allStatus') }}</option>
             <option value="pipeline">MinerU Pipeline</option>
             <option value="paddleocr-vl">PaddleOCR-VL</option>
+            <option value="paddleocr-vl-vllm">PaddleOCR-VL-VLLM</option>
             <option value="vlm-transformers">VLM Transformers</option>
             <option value="vlm-vllm-engine">VLM vLLM Engine</option>
           </select>

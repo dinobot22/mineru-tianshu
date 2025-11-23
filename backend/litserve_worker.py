@@ -17,11 +17,13 @@ import signal
 import atexit
 from pathlib import Path
 from typing import Optional
+import multiprocessing
 
 # Fix litserve MCP compatibility with mcp>=1.1.0
 # Completely disable LitServe's internal MCP to avoid conflicts with our standalone MCP Server
 import litserve as ls
 from litserve.connector import check_cuda_with_nvidia_smi
+from utils import parse_list_arg
 
 try:
     # Patch LitServe's MCP module to disable it completely
@@ -115,6 +117,13 @@ if PADDLEOCR_VL_AVAILABLE:
 else:
     logger.info("ℹ️  PaddleOCR-VL not available (optional)")
 
+# 检查 PaddleOCR-VL-VLLM 是否可用（不要导入，避免初始化 CUDA）
+PADDLEOCR_VL_VLLM_AVAILABLE = importlib.util.find_spec("paddleocr_vl_vllm") is not None
+if PADDLEOCR_VL_VLLM_AVAILABLE:
+    logger.info("✅ PaddleOCR-VL-VLLM engine available")
+else:
+    logger.info("ℹ️  PaddleOCR-VL-VLLM not available (optional)")
+
 # 尝试导入 SenseVoice 音频处理
 SENSEVOICE_AVAILABLE = importlib.util.find_spec("audio_engines") is not None
 if SENSEVOICE_AVAILABLE:
@@ -153,18 +162,25 @@ except ImportError as e:
 
 
 class MinerUWorkerAPI(ls.LitAPI):
-    """
-    MinerU Tianshu Worker API
-
-    继承自 LitServe 的 LitAPI，实现自动负载均衡
-    Worker 主动循环拉取任务并处理，无需外部调度
-    """
-
-    def __init__(self):
-        """初始化 API (不接受参数，参数通过类属性传递)"""
+    def __init__(
+        self,
+        paddleocr_vl_vllm_api_list=None,
+        output_dir=None,
+        poll_interval=0.5,
+        enable_worker_loop=True,
+        paddleocr_vl_vllm_engine_enabled=False,
+    ):
+        """
+        初始化 API：直接在这里接收所有需要的参数
+        """
         super().__init__()
-        # 这些属性会在创建实例前设置（通过类属性）
-        # 在 setup() 中会用到
+        self.output_dir = output_dir or os.getenv("OUTPUT_PATH", "/app/output")
+        self.poll_interval = poll_interval
+        self.enable_worker_loop = enable_worker_loop
+        self.paddleocr_vl_vllm_engine_enabled = paddleocr_vl_vllm_engine_enabled
+        self.paddleocr_vl_vllm_api_list = paddleocr_vl_vllm_api_list or []
+        ctx = multiprocessing.get_context("spawn")
+        self._global_worker_counter = ctx.Value("i", 0)
 
     def setup(self, device):
         """
@@ -173,6 +189,19 @@ class MinerUWorkerAPI(ls.LitAPI):
         Args:
             device: 设备 ID (cuda:0, cuda:1, cpu 等)
         """
+        ## 配置每个 Worker 的全局索引并尝试性分配self.paddleocr_vl_vllm_api
+        with self._global_worker_counter.get_lock():
+            my_global_index = self._global_worker_counter.value
+            self._global_worker_counter.value += 1
+        logger.info(f"🔢 [Init] I am Global Worker #{my_global_index} (on {device})")
+        if self.paddleocr_vl_vllm_engine_enabled and len(self.paddleocr_vl_vllm_api_list) > 0:
+            assigned_api = self.paddleocr_vl_vllm_api_list[my_global_index % len(self.paddleocr_vl_vllm_api_list)]
+            self.paddleocr_vl_vllm_api = assigned_api
+            logger.info(f"🔧 Worker #{my_global_index} assigned Paddle OCR VL API: {assigned_api}")
+        else:
+            self.paddleocr_vl_vllm_api = None
+            logger.info(f"🔧 Worker #{my_global_index} assigned Paddle OCR VL API: None")
+
         # ============================================================================
         # 【关键】第一步：立即设置 CUDA_VISIBLE_DEVICES（必须在任何导入之前）
         # ============================================================================
@@ -311,6 +340,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         hostname = socket.gethostname()
         pid = os.getpid()
         self.worker_id = f"tianshu-{hostname}-{device}-{pid}"
+        # 子进程（setup 中）：
 
         # 初始化可选的处理引擎
         self.markitdown = MarkItDown() if MARKITDOWN_AVAILABLE else None
@@ -502,6 +532,12 @@ class MinerUWorkerAPI(ls.LitAPI):
                 logger.info(f"🔍 Processing with PaddleOCR-VL: {file_path}")
                 result = self._process_with_paddleocr_vl(file_path, options)
 
+            # 5. 用户指定了 PaddleOCR-VL-VLLM
+            elif backend == "paddleocr-vl-vllm":
+                if not PADDLEOCR_VL_VLLM_AVAILABLE:
+                    raise ValueError("PaddleOCR-VL-VLLM engine is not available")
+                logger.info(f"🔍 Processing with PaddleOCR-VL-VLLM: {file_path}")
+                result = self._process_with_paddleocr_vl_vllm(file_path, options)
             # 6. 用户指定了 MinerU Pipeline
             elif backend == "pipeline":
                 logger.info(f"🔧 Processing with MinerU Pipeline: {file_path}")
@@ -729,6 +765,31 @@ class MinerUWorkerAPI(ls.LitAPI):
             # 注意：由于在 setup() 中已设置 CUDA_VISIBLE_DEVICES，
             # 该进程只能看到一个 GPU（映射为 cuda:0）
             self.paddleocr_vl_engine = PaddleOCRVLEngine(device="cuda:0")
+            gpu_id = os.environ.get("CUDA_VISIBLE_DEVICES", "?")
+            logger.info(f"✅ PaddleOCR-VL engine loaded on cuda:0 (physical GPU {gpu_id})")
+
+        # 设置输出目录
+        output_dir = Path(self.output_dir) / Path(file_path).stem
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # 处理文件（parse 方法需要 output_path）
+        result = self.paddleocr_vl_engine.parse(file_path, output_path=str(output_dir))
+
+        # 规范化输出（统一文件名和目录结构）
+        normalize_output(output_dir)
+
+        # 返回结果
+        return {"result_path": str(output_dir), "content": result.get("markdown", "")}
+
+    def _process_with_paddleocr_vl_vllm(self, file_path: str, options: dict) -> dict:
+        """使用 PaddleOCR-VL VLLM 处理图片或 PDF"""
+        # 延迟加载 PaddleOCR-VL（单例模式）
+        if self.paddleocr_vl_engine is None:
+            from paddleocr_vl_vllm import PaddleOCRVLVLLMEngine
+
+            # 注意：由于在 setup() 中已设置 CUDA_VISIBLE_DEVICES，
+            # 该进程只能看到一个 GPU（映射为 cuda:0）
+            self.paddleocr_vl_engine = PaddleOCRVLVLLMEngine(device="cuda:0", vllm_api_base=self.paddleocr_vl_vllm_api)
             gpu_id = os.environ.get("CUDA_VISIBLE_DEVICES", "?")
             logger.info(f"✅ PaddleOCR-VL engine loaded on cuda:0 (physical GPU {gpu_id})")
 
@@ -1062,6 +1123,8 @@ def start_litserve_workers(
     port=8001,
     poll_interval=0.5,
     enable_worker_loop=True,
+    paddleocr_vl_vllm_engine_enabled=False,
+    paddleocr_vl_vllm_api_list=[],
 ):
     """
     启动 LitServe Worker Pool
@@ -1074,6 +1137,8 @@ def start_litserve_workers(
         port: 服务端口
         poll_interval: Worker 拉取任务的间隔（秒）
         enable_worker_loop: 是否启用 worker 自动循环拉取任务
+        paddleocr_vl_vllm_engine_enabled: 是否启用 PaddleOCR VL VLLM 引擎
+        paddleocr_vl_vllm_api_list: PaddleOCR VL VLLM API 列表
     """
 
     def resolve_auto_accelerator():
@@ -1111,15 +1176,28 @@ def start_litserve_workers(
     if enable_worker_loop:
         logger.info(f"⏱️  Poll Interval: {poll_interval}s")
     logger.info(f"🎮 Initial Accelerator setting: {accelerator}")
+
+    if paddleocr_vl_vllm_engine_enabled:
+        if not paddleocr_vl_vllm_api_list:
+            logger.error(
+                "请配置 --paddleocr-vl-vllm-api-list 参数，或移除 --paddleocr-vl-vllm-engine-enabled 以禁用 PaddleOCR VL VLLM 引擎"
+            )
+            sys.exit(1)
+        logger.success(f"PaddleOCR VL VLLM 引擎已启用，API 列表为: {paddleocr_vl_vllm_api_list}")
+    else:
+        os.environ.pop("PADDLEOCR_VL_VLLM_ENABLED", None)
+        logger.info("PaddleOCR VL VLLM 引擎已禁用")
+
     logger.info("=" * 60)
 
-    # 创建 LitServe 服务器
-    # 注意：LitAPI 不支持 __init__ 参数，需要通过类属性传递配置
-    MinerUWorkerAPI._output_dir = output_dir
-    MinerUWorkerAPI._poll_interval = poll_interval
-    MinerUWorkerAPI._enable_worker_loop = enable_worker_loop
-
-    api = MinerUWorkerAPI()
+    # 1. 实例化 API 时传入数据
+    api = MinerUWorkerAPI(
+        output_dir=output_dir,
+        poll_interval=poll_interval,
+        enable_worker_loop=enable_worker_loop,
+        paddleocr_vl_vllm_engine_enabled=paddleocr_vl_vllm_engine_enabled,
+        paddleocr_vl_vllm_api_list=paddleocr_vl_vllm_api_list,  # ✅ 在这里传
+    )
 
     if accelerator == "auto":
         # 手动解析accelerator的具体设置
@@ -1193,7 +1271,18 @@ if __name__ == "__main__":
         action="store_true",
         help="Disable automatic worker loop (workers will wait for manual triggers)",
     )
-
+    parser.add_argument(
+        "--paddleocr-vl-vllm-engine-enabled",
+        action="store_true",
+        default=False,
+        help="是否启用 PaddleOCR VL VLLM 引擎 (默认: False)",
+    )
+    parser.add_argument(
+        "--paddleocr-vl-vllm-api-list",
+        type=parse_list_arg,
+        default=[],
+        help='PaddleOCR VL VLLM API 列表（Python list 字面量格式，如: \'["http://127.0.0.1:8000/v1", "http://127.0.0.1:8001/v1"]\'）',
+    )
     args = parser.parse_args()
 
     # ============================================================================
@@ -1262,4 +1351,6 @@ if __name__ == "__main__":
         port=port,
         poll_interval=args.poll_interval,
         enable_worker_loop=not args.disable_worker_loop,
+        paddleocr_vl_vllm_engine_enabled=args.paddleocr_vl_vllm_engine_enabled,
+        paddleocr_vl_vllm_api_list=args.paddleocr_vl_vllm_api_list,
     )

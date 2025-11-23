@@ -158,6 +158,8 @@ export default {
     backendPipeline: 'MinerU Pipeline（完整解析）',
     backendPaddleOCR: 'PaddleOCR-VL（多语言 OCR，109+ 语言）',
     backendPaddleOCRHint: '🌏 PaddleOCR-VL: 自动多语言识别，支持文档方向校正、文本矫正、版面检测',
+    backendPaddleOCRVLLM: 'PaddleOCR-VL-VLLM（高性能多语言 OCR）',
+    backendPaddleOCRVLLMHint: '🚀 PaddleOCR-VL-VLLM: 基于 vLLM 的高性能多语言 OCR',
     backendVLMTransformers: 'VLM Transformers（视觉语言模型）',
     backendVLMEngine: 'VLM vLLM Engine（高性能 VLM）',
     backendSenseVoice: 'SenseVoice（语音识别，说话人识别）',

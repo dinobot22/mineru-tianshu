@@ -38,6 +38,7 @@
               <optgroup :label="$t('task.groupDocParsing')">
                 <option value="pipeline">{{ $t('task.backendPipeline') }}</option>
                 <option value="paddleocr-vl">{{ $t('task.backendPaddleOCR') }}</option>
+                <option value="paddleocr-vl-vllm">{{ $t('task.backendPaddleOCRVLLM') }}</option>
                 <option value="vlm-transformers">{{ $t('task.backendVLMTransformers') }}</option>
                 <option value="vlm-vllm-engine">{{ $t('task.backendVLMEngine') }}</option>
               </optgroup>
@@ -56,6 +57,9 @@
 
             <p v-if="config.backend === 'paddleocr-vl'" class="mt-1 text-xs text-gray-500">
               {{ $t('task.backendPaddleOCRHint') }}
+            </p>
+            <p v-if="config.backend === 'paddleocr-vl-vllm'" class="mt-1 text-xs text-gray-500">
+              {{ $t('task.backendPaddleOCRVLLMHint') }}
             </p>
             <p v-if="config.backend === 'sensevoice'" class="mt-1 text-xs text-gray-500">
               {{ $t('task.backendSenseVoiceHint') }}
@@ -123,9 +127,9 @@
         </div>
 
         <!-- 提示信息 -->
-        <div v-if="['pipeline', 'paddleocr-vl'].includes(config.backend)" class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <div v-if="['pipeline', 'paddleocr-vl', 'paddleocr-vl-vllm'].includes(config.backend)" class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
           <p class="text-sm text-blue-800">
-            {{ $t('task.tipBothFormats', { backend: config.backend === 'pipeline' ? 'MinerU' : 'PaddleOCR-VL' }) }}
+            {{ $t('task.tipBothFormats', { backend: config.backend === 'pipeline' ? 'MinerU' : config.backend === 'paddleocr-vl' ? 'PaddleOCR-VL' : 'PaddleOCR-VL-VLLM' }) }}
           </p>
         </div>
 
@@ -238,7 +242,7 @@
         </div>
 
         <!-- 水印去除配置（PDF/图片） -->
-        <div v-if="['pipeline', 'paddleocr-vl'].includes(config.backend)" class="mt-6 pt-6 border-t border-gray-200">
+        <div v-if="['pipeline', 'paddleocr-vl', 'paddleocr-vl-vllm'].includes(config.backend)" class="mt-6 pt-6 border-t border-gray-200">
           <h3 class="text-base font-semibold text-gray-900 mb-4">{{ $t('task.watermarkOptions') }}</h3>
 
           <div class="space-y-4">

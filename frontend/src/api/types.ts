@@ -95,6 +95,7 @@ export type Backend =
   | 'vlm-transformers'
   | 'vlm-vllm-engine'
   | 'paddleocr-vl'
+  | 'paddleocr-vl-vllm'
   | 'sensevoice'
   | 'video'
   | 'fasta'  // FASTA 生物序列格式
