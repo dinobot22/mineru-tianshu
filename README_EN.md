@@ -200,7 +200,7 @@ MinerU Tianshu is an **Enterprise-grade AI Data Preprocessing Platform** that co
 ### Supported File Formats
 
 - 📄 **Documents**: PDF, Word, Excel, PPT (MinerU, PaddleOCR-VL, MarkItDown)
-- 🖼️ **Images**: JPG, PNG, BMP, TIFF (MinerU, PaddleOCR-VL, DeepSeek OCR)
+- 🖼️ **Images**: JPG, PNG, BMP, TIFF (MinerU, PaddleOCR-VL)
 - 🎙️ **Audio**: MP3, WAV, M4A, FLAC (SenseVoice multi-language, speaker diarization, emotion recognition)
 - 🎬 **Video**: MP4, AVI, MKV, MOV, WebM (audio transcription + keyframe OCR🧪)
 - 🧬 **Bio Formats**: FASTA, GenBank (sequence statistics, base analysis, GC content)
@@ -296,11 +296,11 @@ npm run dev                  # http://localhost:3000
 1. Click "Submit Task" in the top navigation bar
 2. Drag and drop or click to upload files (supports batch upload)
 3. Configure parsing options:
-   - Select processing backend (pipeline/vlm-transformers/vlm-vllm-engine/deepseek-ocr)
+   - Select processing backend (pipeline/vlm-transformers/vlm-vllm-engine)
      - **pipeline**: MinerU standard pipeline, suitable for general document parsing
      - **vlm-transformers**: MinerU VLM mode (Transformers)
      - **vlm-vllm-engine**: MinerU VLM mode (vLLM engine)
-     - **deepseek-ocr**: DeepSeek OCR engine, suitable for high-precision OCR needs
+     <!-- - **deepseek-ocr**: DeepSeek OCR engine, suitable for high-precision OCR needs -->
    - Set document language
    - Enable formula/table recognition
    - Set task priority
@@ -579,7 +579,7 @@ python start_all.py --api-port 8000 --worker-port 9000
 - FastAPI
 - LitServe
 - MinerU
-- DeepSeek OCR
+<!-- - DeepSeek OCR -->
 - MarkItDown
 - SQLite
 - Loguru

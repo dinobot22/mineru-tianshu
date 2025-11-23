@@ -340,7 +340,7 @@ def main():
         "--paddleocr-vl-vllm-api-list",
         type=parse_list_arg,
         default=[],
-        help='PaddleOCR VL VLLM API 列表（Python list 字面量格式，如: \'["http://127.0.0.1:8000/v1", "http://127.0.0.1:8001/v1"]\'）',
+        help='PaddleOCR VL VLLM API 列表（Python list 字面量格式，如: \'["http://0.0.0.0:17300/v1", "http://0.0.0.0:17301/v1"]\'）',
     )
 
     args = parser.parse_args()

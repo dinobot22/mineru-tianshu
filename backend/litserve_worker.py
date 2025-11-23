@@ -345,6 +345,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         # 初始化可选的处理引擎
         self.markitdown = MarkItDown() if MARKITDOWN_AVAILABLE else None
         self.paddleocr_vl_engine = None  # 延迟加载
+        self.paddleocr_vl_vllm_engine = None  # 延迟加载
         self.sensevoice_engine = None  # 延迟加载
         self.video_engine = None  # 延迟加载
         self.watermark_handler = None  # 延迟加载
@@ -534,7 +535,11 @@ class MinerUWorkerAPI(ls.LitAPI):
 
             # 5. 用户指定了 PaddleOCR-VL-VLLM
             elif backend == "paddleocr-vl-vllm":
-                if not PADDLEOCR_VL_VLLM_AVAILABLE:
+                if (
+                    not PADDLEOCR_VL_VLLM_AVAILABLE
+                    or not self.paddleocr_vl_vllm_engine_enabled
+                    or len(self.paddleocr_vl_vllm_api_list) == 0
+                ):
                     raise ValueError("PaddleOCR-VL-VLLM engine is not available")
                 logger.info(f"🔍 Processing with PaddleOCR-VL-VLLM: {file_path}")
                 result = self._process_with_paddleocr_vl_vllm(file_path, options)
@@ -784,12 +789,14 @@ class MinerUWorkerAPI(ls.LitAPI):
     def _process_with_paddleocr_vl_vllm(self, file_path: str, options: dict) -> dict:
         """使用 PaddleOCR-VL VLLM 处理图片或 PDF"""
         # 延迟加载 PaddleOCR-VL（单例模式）
-        if self.paddleocr_vl_engine is None:
+        if self.paddleocr_vl_vllm_engine is None:
             from paddleocr_vl_vllm import PaddleOCRVLVLLMEngine
 
             # 注意：由于在 setup() 中已设置 CUDA_VISIBLE_DEVICES，
             # 该进程只能看到一个 GPU（映射为 cuda:0）
-            self.paddleocr_vl_engine = PaddleOCRVLVLLMEngine(device="cuda:0", vllm_api_base=self.paddleocr_vl_vllm_api)
+            self.paddleocr_vl_vllm_engine = PaddleOCRVLVLLMEngine(
+                device="cuda:0", vllm_api_base=self.paddleocr_vl_vllm_api
+            )
             gpu_id = os.environ.get("CUDA_VISIBLE_DEVICES", "?")
             logger.info(f"✅ PaddleOCR-VL engine loaded on cuda:0 (physical GPU {gpu_id})")
 
@@ -798,7 +805,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # 处理文件（parse 方法需要 output_path）
-        result = self.paddleocr_vl_engine.parse(file_path, output_path=str(output_dir))
+        result = self.paddleocr_vl_vllm_engine.parse(file_path, output_path=str(output_dir))
 
         # 规范化输出（统一文件名和目录结构）
         normalize_output(output_dir)

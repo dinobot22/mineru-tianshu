@@ -180,14 +180,20 @@ class PaddleOCRVLVLLMEngine:
 
                 # 创建 PaddleOCRVL 实例（按照官方文档最佳实践）
                 # 参考: https://www.paddleocr.ai/latest/version3.x/pipeline_usage/PaddleOCR-VL.html#322-python-api
-                self._pipeline = PaddleOCRVL(
-                    use_doc_orientation_classify=True,  # 文档方向分类，自动旋转文档
-                    use_doc_unwarping=True,  # 文本图像矫正，修正扭曲变形
-                    use_layout_detection=True,  # 版面区域检测排序，智能排版,
-                    vl_rec_backend="vllm-server",  # 使用 VLLM 后端
-                    vl_rec_server_url=self.vllm_api_base,  # VLLM 服务器地址
-                )
 
+                if self.vllm_api_base is None:
+                    # 抛出一个异常
+                    raise ValueError(
+                        "vllm_api_base 不能为 None，请检查paddleocr-vl-vllm-engine-enabled 及 paddleocr-vl-vllm-api-list 配置"
+                    )
+                else:
+                    self._pipeline = PaddleOCRVL(
+                        use_doc_orientation_classify=True,  # 文档方向分类，自动旋转文档
+                        use_doc_unwarping=True,  # 文本图像矫正，修正扭曲变形
+                        use_layout_detection=True,  # 版面区域检测排序，智能排版,
+                        vl_rec_backend="vllm-server",  # 使用 VLLM 后端
+                        vl_rec_server_url=self.vllm_api_base,  # VLLM 服务器地址
+                    )
                 logger.info("=" * 60)
                 logger.info("✅ PaddleOCR-VL-VLLM Pipeline loaded successfully!")
                 logger.info(f"   Device: GPU {self.gpu_id}")
