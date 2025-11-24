@@ -201,7 +201,7 @@ MinerU Tianshu（天枢）是一个**企业级 AI 数据预处理平台**，将�
 ### 支持的文件格式
 
 - 📄 **文档**: PDF、Word、Excel、PPT（MinerU、PaddleOCR-VL、MarkItDown）
-- 🖼️ **图片**: JPG、PNG、BMP、TIFF（MinerU、PaddleOCR-VL、DeepSeek OCR）
+- 🖼️ **图片**: JPG、PNG、BMP、TIFF（MinerU、PaddleOCR-VL）
 - 🎙️ **音频**: MP3、WAV、M4A、FLAC（SenseVoice 多语言、说话人识别、情感识别）
 - 🎬 **视频**: MP4、AVI、MKV、MOV、WebM（音频转写 + 关键帧 OCR🧪）
 - 🧬 **生物格式**: FASTA、GenBank（序列统计、碱基分析、GC 含量）
@@ -295,7 +295,7 @@ npm run dev                  # http://localhost:3000
 ### 提交任务
 
 1. 点击"提交任务"，拖拽上传文件（支持批量）
-2. 配置选项：选择引擎（pipeline/vlm/deepseek-ocr）、语言、公式/表格识别、优先级
+2. 配置选项：选择引擎（pipeline/vlm）、语言、公式/表格识别、优先级
 3. 提交后在仪表盘或任务列表查看状态
 4. 完成后预览/下载 Markdown 或 JSON 结果
 
@@ -303,7 +303,7 @@ npm run dev                  # http://localhost:3000
 
 - **pipeline**: MinerU 标准流程，通用文档解析
 - **vlm-transformers/vlm-vllm-engine**: MinerU VLM 模式
-- **deepseek-ocr**: DeepSeek OCR，高精度需求
+<!-- - **deepseek-ocr**: DeepSeek OCR，高精度需求 -->
 - **paddleocr-vl**: 109+ 语言，自动方向矫正
 
 ## 🎯 核心特性
@@ -311,7 +311,7 @@ npm run dev                  # http://localhost:3000
 - **Worker 主动拉取**: 0.5秒响应，无需调度器触发
 - **GPU 负载均衡**: LitServe 自动调度，避免显存冲突，多 GPU 隔离
 - **并发安全**: 原子操作防止任务重复，支持多 Worker 并发
-- **多解析引擎**: MinerU、PaddleOCR-VL、DeepSeek OCR、MarkItDown、格式引擎
+- **多解析引擎**: MinerU、PaddleOCR-VL、MarkItDown、格式引擎
 - **自动清理**: 定期清理旧文件，保留数据库记录
 - **现代化 UI**: TailwindCSS 美观界面，响应式设计，实时更新
 

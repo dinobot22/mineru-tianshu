@@ -158,6 +158,8 @@ export default {
     backendPipeline: 'MinerU Pipeline (Complete parsing)',
     backendPaddleOCR: 'PaddleOCR-VL (Multilingual OCR, 109+ languages)',
     backendPaddleOCRHint: '🌏 PaddleOCR-VL: Automatic multilingual recognition, supports document orientation correction, text correction, layout detection',
+    backendPaddleOCRVLLM: 'PaddleOCR-VL-VLLM (High-performance multilingual OCR)',
+    backendPaddleOCRVLLMHint: '🚀 PaddleOCR-VL-VLLM: High-performance multilingual OCR based on vLLM',
     backendVLMTransformers: 'VLM Transformers (Vision Language Model)',
     backendVLMEngine: 'VLM vLLM Engine (High-performance VLM)',
     backendSenseVoice: 'SenseVoice (Speech recognition, speaker identification)',
