@@ -124,6 +124,13 @@ if PADDLEOCR_VL_VLLM_AVAILABLE:
 else:
     logger.info("ℹ️  PaddleOCR-VL-VLLM not available (optional)")
 
+# 检查 MinerU Pipeline 是否可用
+MINERU_PIPELINE_AVAILABLE = importlib.util.find_spec("mineru_pipeline") is not None
+if MINERU_PIPELINE_AVAILABLE:
+    logger.info("✅ MinerU Pipeline engine available")
+else:
+    logger.info("ℹ️  MinerU Pipeline not available (optional)")
+
 # 尝试导入 SenseVoice 音频处理
 SENSEVOICE_AVAILABLE = importlib.util.find_spec("audio_engines") is not None
 if SENSEVOICE_AVAILABLE:
@@ -261,8 +268,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         # ============================================================================
         # 第二步：现在可以安全地导入 MinerU 了（CUDA_VISIBLE_DEVICES 已设置）
         # ============================================================================
-        global do_parse, get_vram, clean_memory
-        from mineru.cli.common import do_parse
+        global get_vram, clean_memory
         from mineru.utils.model_utils import get_vram, clean_memory
 
         # 配置 MinerU 的 VRAM 设置
@@ -344,6 +350,7 @@ class MinerUWorkerAPI(ls.LitAPI):
 
         # 初始化可选的处理引擎
         self.markitdown = MarkItDown() if MARKITDOWN_AVAILABLE else None
+        self.mineru_pipeline_engine = None  # 延迟加载
         self.paddleocr_vl_engine = None  # 延迟加载
         self.paddleocr_vl_vllm_engine = None  # 延迟加载
         self.sensevoice_engine = None  # 延迟加载
@@ -364,6 +371,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         # 打印可用的引擎
         logger.info("📦 Available Engines:")
         logger.info(f"   • MarkItDown: {'✅' if MARKITDOWN_AVAILABLE else '❌'}")
+        logger.info(f"   • MinerU Pipeline: {'✅' if MINERU_PIPELINE_AVAILABLE else '❌'}")
         logger.info(f"   • PaddleOCR-VL: {'✅' if PADDLEOCR_VL_AVAILABLE else '❌'}")
         logger.info(f"   • SenseVoice: {'✅' if SENSEVOICE_AVAILABLE else '❌'}")
         logger.info(f"   • Video Engine: {'✅' if VIDEO_ENGINE_AVAILABLE else '❌'}")
@@ -545,6 +553,8 @@ class MinerUWorkerAPI(ls.LitAPI):
                 result = self._process_with_paddleocr_vl_vllm(file_path, options)
             # 6. 用户指定了 MinerU Pipeline
             elif backend == "pipeline":
+                if not MINERU_PIPELINE_AVAILABLE:
+                    raise ValueError("MinerU Pipeline engine is not available")
                 logger.info(f"🔧 Processing with MinerU Pipeline: {file_path}")
                 result = self._process_with_mineru(file_path, options)
 
@@ -566,7 +576,7 @@ class MinerUWorkerAPI(ls.LitAPI):
                     result = self._process_video(file_path, options)
 
                 # 7.4 默认使用 MinerU Pipeline 处理 PDF/图片
-                elif file_ext in [".pdf", ".png", ".jpg", ".jpeg"]:
+                elif file_ext in [".pdf", ".png", ".jpg", ".jpeg"] and MINERU_PIPELINE_AVAILABLE:
                     logger.info(f"🔧 [Auto] Processing with MinerU Pipeline: {file_path}")
                     result = self._process_with_mineru(file_path, options)
 
@@ -638,106 +648,36 @@ class MinerUWorkerAPI(ls.LitAPI):
         - MinerU 的 do_parse 只接受 PDF 格式，图片需要先转换为 PDF
         - CUDA_VISIBLE_DEVICES 已在 setup() 阶段设置，MinerU 会自动使用正确的 GPU
         """
-        import img2pdf
+        # 延迟加载 MinerU Pipeline（单例模式）
+        if self.mineru_pipeline_engine is None:
+            from mineru_pipeline import MinerUPipelineEngine
 
-        file_stem = Path(file_path).stem
-        file_ext = Path(file_path).suffix.lower()
-        output_dir = Path(self.output_dir) / file_stem
+            # 注意：由于在 setup() 中已设置 CUDA_VISIBLE_DEVICES，
+            # 该进程只能看到一个 GPU（映射为 cuda:0）
+            self.mineru_pipeline_engine = MinerUPipelineEngine(device="cuda:0")
+            gpu_id = os.environ.get("CUDA_VISIBLE_DEVICES", "?")
+            logger.info(f"✅ MinerU Pipeline engine loaded on cuda:0 (physical GPU {gpu_id})")
+
+        # 设置输出目录
+        output_dir = Path(self.output_dir) / Path(file_path).stem
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # 读取文件为字节
-        with open(file_path, "rb") as f:
-            file_bytes = f.read()
+        # 处理文件
+        result = self.mineru_pipeline_engine.parse(file_path, output_path=str(output_dir), options=options)
 
-        # MinerU 的 do_parse 只支持 PDF 格式
-        # 图片文件需要先转换为 PDF
-        if file_ext in [".png", ".jpg", ".jpeg"]:
-            logger.info("🖼️  Converting image to PDF for MinerU processing...")
-            try:
-                pdf_bytes = img2pdf.convert(file_bytes)
-                file_name = f"{file_stem}.pdf"  # 使用 .pdf 扩展名
-                logger.info(f"✅ Image converted: {file_name} ({len(pdf_bytes)} bytes)")
-            except Exception as e:
-                logger.error(f"❌ Image conversion failed: {e}")
-                raise ValueError(f"Failed to convert image to PDF: {e}")
-        else:
-            # PDF 文件直接使用
-            pdf_bytes = file_bytes
-            file_name = Path(file_path).name
+        # 规范化输出（统一文件名和目录结构）
+        # 注意：result["result_path"] 是实际包含 md 文件的目录（例如 {output_dir}/{file_name}/auto/）
+        # 我们需要在这个result["result_path"] 上运行 normalize_output
+        actual_output_dir = Path(result["result_path"])
+        normalize_output(actual_output_dir)
 
-        # 获取语言设置
-        # MinerU 不支持 "auto"，默认使用中文
-        lang = options.get("lang", "auto")
-        if lang == "auto":
-            lang = "ch"
-            logger.info("🌐 Language set to 'ch' (MinerU doesn't support 'auto')")
-
-        # 调用 MinerU 新版 API（批量处理接口）
-        # 新版 API 接受列表参数，即使只有一个文件也要用列表
-        # output_format 支持: "md", "md_json" (同时输出 markdown 和 JSON)
-        do_parse(
-            pdf_file_names=[file_name],  # 文件名列表
-            pdf_bytes_list=[pdf_bytes],  # 文件字节列表
-            p_lang_list=[lang],  # 语言列表
-            output_dir=str(output_dir),  # 输出目录
-            output_format="md_json",  # 同时输出 Markdown 和 JSON
-            end_page_id=options.get("end_page_id"),
-            layout_mode=options.get("layout_mode", True),
-            formula_enable=options.get("formula_enable", True),
-            table_enable=options.get("table_enable", True),
-        )
-
-        # MinerU 新版输出结构: {output_dir}/{file_name}/auto/{file_stem}.md
-        # 递归查找 markdown 文件和 JSON 文件
-        md_files = list(output_dir.rglob("*.md"))
-
-        if md_files:
-            # 使用第一个找到的 md 文件
-            md_file = md_files[0]
-            logger.info(f"✅ Found MinerU output: {md_file}")
-            content = md_file.read_text(encoding="utf-8")
-
-            # 返回实际的输出目录（包含 auto/ 子目录）
-            actual_output_dir = md_file.parent
-
-            # 查找 JSON 文件
-            # MinerU 输出的 JSON 文件格式: {filename}_content_list.json, {filename}_middle.json, {filename}_model.json
-            # 我们主要关注 content_list.json（包含结构化内容）
-            json_files = [
-                f
-                for f in actual_output_dir.rglob("*.json")
-                if "_content_list.json" in f.name and not f.parent.name.startswith("page_")
-            ]
-
-            result = {
-                "result_path": str(actual_output_dir),  # 返回包含所有输出的目录
-                "content": content,
-            }
-
-            # 如果找到 JSON 文件，也读取它
-            if json_files:
-                json_file = json_files[0]
-                logger.info(f"✅ Found MinerU JSON output: {json_file}")
-                try:
-                    with open(json_file, "r", encoding="utf-8") as f:
-                        json_content = json.load(f)
-                    result["json_path"] = str(json_file)
-                    result["json_content"] = json_content
-                except Exception as e:
-                    logger.warning(f"⚠️  Failed to load JSON: {e}")
-            else:
-                logger.info("ℹ️  No JSON output found (MinerU may not generate it by default)")
-
-            # 规范化输出（统一文件名和目录结构）
-            normalize_output(actual_output_dir)
-
-            return result
-        else:
-            # 如果找不到 md 文件，列出输出目录内容以便调试
-            logger.error("❌ MinerU output directory structure:")
-            for item in output_dir.rglob("*"):
-                logger.error(f"   {item}")
-            raise FileNotFoundError(f"MinerU output not found in: {output_dir}")
+        # MinerU Pipeline 返回结构：
+        return {
+            "result_path": result["result_path"],
+            "content": result["markdown"],
+            "json_path": result.get("json_path"),
+            "json_content": result.get("json_content"),
+        }
 
     def _process_with_markitdown(self, file_path: str) -> dict:
         """使用 MarkItDown 处理 Office 文档"""
