@@ -45,8 +45,7 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
-    # 文件上传大小限制（与环境变量 MAX_FILE_SIZE 保持一致）
-    # 默认 500MB，可通过 docker-compose.yml 的环境变量调整
+    # 文件上传大小限制（0 表示不限制）
     client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};
 
     # Gzip 压缩
@@ -115,8 +114,8 @@ RUN cat > /docker-entrypoint.sh <<'SCRIPT'
 #!/bin/sh
 set -e
 
-# 设置默认值（如果环境变量未设置）
-export NGINX_CLIENT_MAX_BODY_SIZE=${NGINX_CLIENT_MAX_BODY_SIZE:-500m}
+# 设置默认值（如果环境变量未设置，0 表示不限制）
+export NGINX_CLIENT_MAX_BODY_SIZE=${NGINX_CLIENT_MAX_BODY_SIZE:-0}
 
 # 替换 Nginx 配置中的环境变量
 envsubst '${NGINX_CLIENT_MAX_BODY_SIZE}' < /etc/nginx/conf.d/default.conf > /tmp/default.conf

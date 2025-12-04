@@ -13,7 +13,6 @@
         <FileUploader
           ref="fileUploader"
           :multiple="true"
-          :maxSize="100 * 1024 * 1024"
           :acceptHint="$t('task.supportedFormatsHint')"
           @update:files="onFilesChange"
         />

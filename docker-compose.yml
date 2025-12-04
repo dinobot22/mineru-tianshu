@@ -65,8 +65,8 @@ services:
       # Worker 配置
       - WORKER_URL=${WORKER_URL:-http://worker:8001}
 
-      # 文件限制
-      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-524288000}  # 500MB
+      # 文件限制（0 表示不限制）
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-0}  # 不限制文件大小
 
       # 模型路径
       - MODEL_PATH=/app/models
@@ -215,9 +215,8 @@ services:
       - "${FRONTEND_PORT:-80}:80"
     environment:
       - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
-      # Nginx 文件上传大小限制（从 MAX_FILE_SIZE 字节转换为 MB）
-      # 500MB = 524288000 bytes
-      - NGINX_CLIENT_MAX_BODY_SIZE=${NGINX_CLIENT_MAX_BODY_SIZE:-500m}
+      # Nginx 文件上传大小限制（0 表示不限制）
+      - NGINX_CLIENT_MAX_BODY_SIZE=${NGINX_CLIENT_MAX_BODY_SIZE:-0}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/"]
       interval: 30s

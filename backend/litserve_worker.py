@@ -809,12 +809,15 @@ class MinerUWorkerAPI(ls.LitAPI):
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # 处理视频
-        result = self.video_engine.process_video(
+        result = self.video_engine.parse(
             video_path=file_path,
-            extract_keyframes=options.get("extract_keyframes", True),
-            transcribe_audio=options.get("transcribe_audio", True),
-            keyframe_interval=options.get("keyframe_interval", 30),
+            output_path=str(output_dir),
             language=options.get("lang", "auto"),
+            use_itn=options.get("use_itn", True),
+            keep_audio=options.get("keep_audio", False),
+            enable_keyframe_ocr=options.get("enable_keyframe_ocr", False),
+            ocr_backend=options.get("ocr_backend", "paddleocr-vl"),
+            keep_keyframes=options.get("keep_keyframes", False),
         )
 
         # 保存结果（Markdown 格式）
