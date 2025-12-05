@@ -17,6 +17,39 @@ name: tianshu
 
 services:
   # ============================================================================
+  # RustFS Object Storage (S3 Compatible)
+  # ============================================================================
+  rustfs:
+    image: rustfs/rustfs:latest  # 或指定版本: rustfs/rustfs:1.0.0.alpha.68
+    container_name: tianshu-rustfs
+    restart: unless-stopped
+    ports:
+      - "${RUSTFS_PORT:-9000}:9000"
+      - "${RUSTFS_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      # RustFS 数据存储（持久化）
+      - ./data/rustfs:/data
+      # RustFS 日志（使用命名卷避免 Windows 权限问题）
+      - rustfs-logs:/logs
+      # 时区配置
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    environment:
+      # 时区设置
+      - TZ=Asia/Shanghai
+      # RustFS 配置
+      - RUSTFS_ROOT_USER=${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      - RUSTFS_ROOT_PASSWORD=${RUSTFS_SECRET_KEY:-rustfsadmin}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - tianshu-network
+
+  # ============================================================================
   # Backend API Server
   # ============================================================================
   backend:
@@ -45,7 +78,12 @@ services:
       - ./logs/backend:/app/logs:rw
       # 数据库（只挂载数据库文件，不要覆盖整个 backend 目录）
       - ./data/db:/app/data/db:rw
+      # 时区配置
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
+      # 时区设置
+      - TZ=Asia/Shanghai
       # 应用配置
       - HOST=0.0.0.0
       - API_PORT=8000
@@ -95,6 +133,7 @@ services:
       - tianshu-network
     depends_on:
       - worker
+      - rustfs
 
   # ============================================================================
   # LitServe GPU Worker
@@ -126,7 +165,12 @@ services:
       - ./logs/worker:/app/logs:rw
       # 数据库（读写，需要更新任务状态）
       - ./data/db:/app/data/db:rw
+      # 时区配置
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
+      # 时区设置
+      - TZ=Asia/Shanghai
       # 应用配置
       - HOST=0.0.0.0
       - WORKER_PORT=8001
@@ -151,6 +195,15 @@ services:
       # 模型下载配置
       - MODEL_DOWNLOAD_SOURCE=${MODEL_DOWNLOAD_SOURCE:-auto}
       - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
+
+      # RustFS 对象存储配置
+      - RUSTFS_ENDPOINT=${RUSTFS_ENDPOINT:-rustfs:9000}
+      - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY:-rustfsadmin}
+      - RUSTFS_BUCKET=${RUSTFS_BUCKET:-ts-img}
+      - RUSTFS_SECURE=${RUSTFS_SECURE:-false}
+      # RUSTFS_PUBLIC_URL: 必须设置为外部可访问的完整 URL
+      - RUSTFS_PUBLIC_URL=${RUSTFS_PUBLIC_URL}
     deploy:
       resources:
         reservations:
@@ -166,6 +219,8 @@ services:
       start_period: 120s
     networks:
       - tianshu-network
+    depends_on:
+      - rustfs
 
   # ============================================================================
   # MCP Server (Model Context Protocol)
@@ -185,7 +240,12 @@ services:
       - ./mcp_config.example.json:/app/backend/mcp_config.json:ro
       # 日志
       - ./logs/mcp:/app/logs:rw
+      # 时区配置
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
+      # 时区设置
+      - TZ=Asia/Shanghai
       - HOST=0.0.0.0
       - MCP_PORT=8002
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -213,7 +273,13 @@ services:
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-80}:80"
+    volumes:
+      # 时区配置
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
+      # 时区设置
+      - TZ=Asia/Shanghai
       - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
       # Nginx 文件上传大小限制（0 表示不限制）
       - NGINX_CLIENT_MAX_BODY_SIZE=${NGINX_CLIENT_MAX_BODY_SIZE:-0}
@@ -242,3 +308,8 @@ volumes:
     driver: local
   logs:
     driver: local
+  rustfs:
+    driver: local
+  rustfs-logs:
+    driver: local
+    name: tianshu-rustfs-logs

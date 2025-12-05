@@ -20,7 +20,6 @@ import os
 import re
 import uuid
 from urllib.parse import quote
-from minio import Minio
 
 from task_db import TaskDB
 
@@ -72,154 +71,83 @@ app.include_router(auth_router)
 OUTPUT_DIR = Path(os.getenv("OUTPUT_PATH", "/app/output"))
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# MinIO 配置
-MINIO_CONFIG = {
-    "endpoint": os.getenv("MINIO_ENDPOINT", ""),
-    "access_key": os.getenv("MINIO_ACCESS_KEY", ""),
-    "secret_key": os.getenv("MINIO_SECRET_KEY", ""),
-    "secure": True,
-    "bucket_name": os.getenv("MINIO_BUCKET", ""),
-}
 
-
-def get_minio_client():
-    """获取MinIO客户端实例"""
-    return Minio(
-        MINIO_CONFIG["endpoint"],
-        access_key=MINIO_CONFIG["access_key"],
-        secret_key=MINIO_CONFIG["secret_key"],
-        secure=MINIO_CONFIG["secure"],
-    )
-
-
-def process_markdown_images(md_content: str, image_dir: Path, result_path: str, upload_images: bool = False):
+# 注意：此函数已废弃，Worker 已自动上传图片到 RustFS 并替换 URL
+# 保留此函数仅用于向后兼容（处理旧任务或 RustFS 失败的情况）
+def process_markdown_images_legacy(md_content: str, image_dir: Path, result_path: str):
     """
-    处理 Markdown 中的图片引用
+    【已废弃】处理 Markdown 中的图片引用
 
-    将相对路径转换为可访问的 URL（静态文件服务或 MinIO）
-    支持两种格式：
-    1. Markdown 语法：![alt](path)
-    2. HTML 标签：<img src="path" ...>
+    Worker 已自动上传图片到 RustFS 并替换 URL，此函数仅用于向后兼容。
+    如果检测到图片路径不是 URL，则转换为本地静态文件服务 URL。
 
     Args:
         md_content: Markdown 内容
-        image_dir: 图片所在目录（绝对路径，Worker 已规范化为 images/）
-        result_path: 任务结果路径（从数据库获取，例如: /app/output/{file_stem}）
-        upload_images: 是否上传图片到 MinIO 并替换链接
+        image_dir: 图片所在目录
+        result_path: 任务结果路径
 
     Returns:
         处理后的 Markdown 内容
     """
+    # 检查是否已经包含 RustFS URL
+    if "http://" in md_content or "https://" in md_content:
+        logger.debug("✅ Markdown already contains URLs (RustFS uploaded)")
+        return md_content
 
-    def process_image_path(image_path: str, alt_text: str = "Image") -> tuple[str, str]:
-        """
-        处理图片路径，返回 (新路径, 格式类型)
+    # 如果没有图片目录，直接返回
+    if not image_dir.exists():
+        logger.debug("ℹ️  No images directory, skipping processing")
+        return md_content
 
-        Returns:
-            (new_url, format_type)  format_type: 'markdown' 或 'html'
-        """
-        # 提取图片文件名
-        image_filename = Path(image_path).name
+    # 兼容模式：转换相对路径为本地 URL
+    logger.warning("⚠️  Images not uploaded to RustFS, using local URLs (legacy mode)")
 
-        # 构建完整的本地图片路径
-        full_image_path = image_dir / image_filename
+    def replace_image_path(match):
+        """替换图片路径为本地 URL"""
+        full_match = match.group(0)
+        # 提取图片路径（Markdown 或 HTML）
+        if "![" in full_match:
+            # Markdown: ![alt](path)
+            image_path = match.group(2)
+            alt_text = match.group(1)
+        else:
+            # HTML: <img src="path">
+            image_path = match.group(2)
+            alt_text = "Image"
 
-        logger.debug(f"🔍 Processing image: {image_path} -> {full_image_path}")
+        # 如果已经是 URL，跳过
+        if image_path.startswith("http"):
+            return full_match
 
-        if not full_image_path.exists():
-            logger.warning(f"⚠️  Image not found: {full_image_path}")
-            return None, None
-
-        # 如果需要上传到 MinIO
-        if upload_images:
-            try:
-                minio_client = get_minio_client()
-                bucket_name = MINIO_CONFIG["bucket_name"]
-                minio_endpoint = MINIO_CONFIG["endpoint"]
-
-                # 获取文件后缀
-                file_extension = full_image_path.suffix
-                # 生成 UUID 作为新文件名
-                new_filename = f"{uuid.uuid4()}{file_extension}"
-
-                # 上传到 MinIO
-                object_name = f"images/{new_filename}"
-                minio_client.fput_object(bucket_name, object_name, str(full_image_path))
-
-                # 生成 MinIO 访问 URL
-                scheme = "https" if MINIO_CONFIG["secure"] else "http"
-                minio_url = f"{scheme}://{minio_endpoint}/{bucket_name}/{object_name}"
-
-                logger.info(f"✅ Uploaded to MinIO: {object_name}")
-                return minio_url, "html"
-            except Exception as e:
-                logger.error(f"❌ Failed to upload image to MinIO: {e}")
-                # 上传失败，继续使用本地静态文件服务
-
-        # 使用本地静态文件服务
-        # result_path 格式: /app/output/{file_stem}
-        # Worker 已规范化图片目录为: images/
-        # 需要转换为: /api/v1/files/output/{file_stem}/images/xxx.jpg
+        # 生成本地静态文件 URL
         try:
-            # 直接使用字符串替换，避免 Path 对象的编码问题
-            output_dir_str = str(OUTPUT_DIR).replace("\\", "/")  # 统一使用正斜杠
+            image_filename = Path(image_path).name
+            output_dir_str = str(OUTPUT_DIR).replace("\\", "/")
             result_path_str = result_path.replace("\\", "/")
 
             if result_path_str.startswith(output_dir_str):
-                # 提取相对路径
                 relative_path = result_path_str[len(output_dir_str) :].lstrip("/")
-                # 对路径进行 URL 编码（safe='/' 保留斜杠）
                 encoded_relative_path = quote(relative_path, safe="/")
-                # 对图片文件名进行 URL 编码
-                encoded_image_filename = quote(image_filename, safe="/")
-                # 构建 API 文件访问 URL（图片目录已规范化为 images/）
-                static_url = f"/api/v1/files/output/{encoded_relative_path}/images/{encoded_image_filename}"
-            else:
-                # 如果路径不匹配，尝试直接拼接
-                logger.warning(f"⚠️  result_path doesn't start with OUTPUT_DIR: {result_path}")
-                encoded_image_filename = quote(image_filename, safe="/")
-                static_url = f"/api/v1/files/output/images/{encoded_image_filename}"
+                encoded_filename = quote(image_filename, safe="/")
+                static_url = f"/api/v1/files/output/{encoded_relative_path}/images/{encoded_filename}"
 
-            logger.debug(f"📸 Image URL: {static_url}")
-            return static_url, "markdown"
+                # 返回替换后的内容
+                if "![" in full_match:
+                    return f"![{alt_text}]({static_url})"
+                else:
+                    return full_match.replace(image_path, static_url)
         except Exception as e:
-            logger.error(f"❌ Failed to generate static URL: {e}")
-            return None, None
+            logger.error(f"❌ Failed to generate local URL: {e}")
 
-    # 1. 处理 Markdown 格式的图片：![alt](path)
-    md_img_pattern = r"!\[([^\]]*)\]\(([^)]+)\)"
-
-    def replace_md_image(match):
-        alt_text = match.group(1)
-        image_path = match.group(2)
-
-        new_url, _ = process_image_path(image_path, alt_text)
-        if new_url:
-            return f"![{alt_text}]({new_url})"
-        return match.group(0)
-
-    # 2. 处理 HTML img 标签：<img src="path" ...>
-    html_img_pattern = r'<img\s+([^>]*\s+)?src="([^"]+)"([^>]*)>'
-
-    def replace_html_image(match):
-        before_src = match.group(1) or ""
-        image_path = match.group(2)
-        after_src = match.group(3) or ""
-
-        # 尝试提取 alt 属性
-        alt_match = re.search(r'alt="([^"]*)"', before_src + after_src)
-        alt_text = alt_match.group(1) if alt_match else "Image"
-
-        new_url, format_type = process_image_path(image_path, alt_text)
-        if new_url:
-            # 保持 HTML 格式
-            return f'<img {before_src}src="{new_url}"{after_src}>'
-        return match.group(0)
+        return full_match
 
     try:
-        # 替换所有图片引用
-        new_content = re.sub(md_img_pattern, replace_md_image, md_content)
-        new_content = re.sub(html_img_pattern, replace_html_image, new_content)
+        # 匹配 Markdown 和 HTML 图片
+        md_pattern = r"!\[([^\]]*)\]\(([^)]+)\)"
+        html_pattern = r'<img\s+([^>]*\s+)?src="([^"]+)"([^>]*)>'
+
+        new_content = re.sub(md_pattern, replace_image_path, md_content)
+        new_content = re.sub(html_pattern, replace_image_path, new_content)
         return new_content
     except Exception as e:
         logger.error(f"❌ Failed to process images: {e}")
@@ -332,7 +260,7 @@ async def submit_task(
 @app.get("/api/v1/tasks/{task_id}", tags=["任务管理"])
 async def get_task_status(
     task_id: str,
-    upload_images: bool = Query(False, description="是否上传图片到MinIO并替换链接（仅当任务完成时有效）"),
+    upload_images: bool = Query(False, description="【已废弃】图片已自动上传到 RustFS，此参数保留仅用于向后兼容"),
     format: str = Query("markdown", description="返回格式: markdown(默认)/json/both"),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -421,51 +349,25 @@ async def get_task_status(
                         # 查找图片目录（Worker 已规范化为 images/）
                         image_dir = md_file.parent / "images"
 
-                        # 缓存文件路径
-                        cached_md_file = md_file.parent / "result_minio.md" if upload_images else None
+                        # 读取 Markdown 内容（Worker 已自动上传图片到 RustFS）
+                        logger.info(f"📖 Reading markdown file: {md_file}")
+                        with open(md_file, "r", encoding="utf-8") as f:
+                            md_content = f.read()
 
-                        # 如果请求 MinIO 版本且缓存存在，直接返回缓存
-                        if upload_images and cached_md_file and cached_md_file.exists():
-                            logger.info(f"✅ Found cached MinIO markdown: {cached_md_file.name}")
-                            with open(cached_md_file, "r", encoding="utf-8") as f:
-                                md_content = f.read()
+                        logger.info(f"✅ Markdown content loaded, length: {len(md_content)} characters")
 
-                            response["data"]["markdown_file"] = cached_md_file.name
-                            response["data"]["content"] = md_content
-                            response["data"]["images_uploaded"] = True
-                            response["data"]["from_cache"] = True
+                        # Worker 已自动上传图片到 RustFS 并替换 URL
+                        # 仅在兼容模式下处理（旧任务或 RustFS 失败）
+                        if image_dir.exists() and ("http://" not in md_content and "https://" not in md_content):
+                            logger.warning("⚠️  Images not uploaded to RustFS, using legacy mode")
+                            md_content = process_markdown_images_legacy(md_content, image_dir, task["result_path"])
                         else:
-                            # 读取原始 Markdown 内容
-                            logger.info(f"📖 Reading markdown file: {md_file}")
-                            with open(md_file, "r", encoding="utf-8") as f:
-                                md_content = f.read()
+                            logger.debug("✅ Images already processed by Worker (RustFS URLs)")
 
-                            logger.info(f"✅ Markdown content loaded, length: {len(md_content)} characters")
-
-                            # 处理图片路径
-                            if image_dir.exists():
-                                logger.info(f"🖼️  Processing images for task {task_id}, upload_images={upload_images}")
-                                logger.info(f"   Image directory: {image_dir}")
-                                md_content = process_markdown_images(
-                                    md_content, image_dir, task["result_path"], upload_images
-                                )
-
-                                # 如果上传到 MinIO，保存缓存文件
-                                if upload_images and cached_md_file:
-                                    try:
-                                        cached_md_file.write_text(md_content, encoding="utf-8")
-                                        logger.info(f"💾 Saved MinIO markdown cache: {cached_md_file.name}")
-                                    except Exception as e:
-                                        logger.warning(f"⚠️  Failed to save cache: {e}")
-                            else:
-                                logger.debug("ℹ️  No images directory found (task may not contain images)")
-
-                            # 添加 Markdown 相关字段
-                            response["data"]["markdown_file"] = md_file.name
-                            response["data"]["content"] = md_content
-                            response["data"]["images_uploaded"] = upload_images
-                            response["data"]["has_images"] = image_dir.exists() if not upload_images else None
-                            response["data"]["from_cache"] = False
+                        # 添加 Markdown 相关字段
+                        response["data"]["markdown_file"] = md_file.name
+                        response["data"]["content"] = md_content
+                        response["data"]["has_images"] = image_dir.exists()
 
                     # 如果用户请求 JSON 格式
                     if format in ["json", "both"] and json_files:

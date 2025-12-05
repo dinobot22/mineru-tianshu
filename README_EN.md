@@ -44,6 +44,19 @@ English | [简体中文](./README.md)
 
 ## 📝 Latest Updates
 
+### 2025-12-05 🗄️ RustFS Object Storage Integration
+
+- ✅ **RustFS Object Storage**: All parsed images automatically uploaded to object storage
+  - S3-compatible API based on minio-py
+  - Batch image upload with auto-generated public URLs
+  - Short and unique filename generation (timestamp Base62 + NanoID)
+  - Auto-grouped by date (YYYYMMDD/filename.ext)
+  - Image paths in Markdown/JSON automatically replaced with object storage URLs
+  - One-click RustFS deployment with Docker Compose
+  - Requires `RUSTFS_PUBLIC_URL` environment variable (externally accessible address)
+- ✅ **Output Standardization Enhancement**: Improved image path handling, unified object storage URLs
+- ✅ **Configuration Simplification**: Streamlined `.env.example`, removed redundant options
+
 ### 2025-11-12 📦 Code Optimization & Documentation Cleanup
 
 - ✅ **Output Standardization**: Unified Markdown/JSON output format, optimized image path handling
