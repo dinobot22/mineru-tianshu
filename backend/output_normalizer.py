@@ -387,29 +387,36 @@ class OutputNormalizer:
             logger.debug(f"🔍 Replacing URLs in {md_file.name}")
             logger.debug(f"   URL mapping: {url_mapping}")
 
-            # 替换所有图片引用
+            # 替换所有图片引用（统一转换为 HTML 格式，更通用）
             for filename, url in url_mapping.items():
-                # Markdown 格式: ![alt](images/xxx.jpg) -> ![alt](https://...)
+                # 方式1: Markdown 格式 -> HTML 格式
+                # ![alt](images/xxx.jpg) -> <img src="https://..." alt="alt">
                 pattern1 = rf"!\[(.*?)\]\({self.STANDARD_IMAGE_DIR}/{re.escape(filename)}\)"
                 matches1 = re.findall(pattern1, content)
                 if matches1:
                     logger.debug(f"   Found Markdown pattern: {pattern1}")
                     logger.debug(f"   Matches: {matches1}")
 
-                new_content = re.sub(pattern1, rf"![\1]({url})", content)
+                # 转换为 HTML 格式（更通用，前端渲染友好）
+                def markdown_to_html(match):
+                    alt_text = match.group(1) or filename
+                    return f'<img src="{url}" alt="{alt_text}">'
+
+                new_content = re.sub(pattern1, markdown_to_html, content)
                 if new_content != content:
                     replaced_count += 1
-                    logger.debug(f"   ✅ Replaced Markdown: {filename} -> {url}")
+                    logger.debug(f"   ✅ Replaced Markdown -> HTML: {filename} -> {url}")
                 content = new_content
 
-                # HTML 格式: <img src="images/xxx.jpg"> -> <img src="https://...">
-                pattern2 = rf'<img([^>]+)src=["\']({self.STANDARD_IMAGE_DIR}/{re.escape(filename)})["\']'
+                # 方式2: HTML 格式 -> 更新 URL
+                # <img src="images/xxx.jpg"> -> <img src="https://...">
+                pattern2 = rf'<img([^>]*?)src=["\']({self.STANDARD_IMAGE_DIR}/{re.escape(filename)})["\']([^>]*?)>'
                 matches2 = re.findall(pattern2, content)
                 if matches2:
                     logger.debug(f"   Found HTML pattern: {pattern2}")
                     logger.debug(f"   Matches: {matches2}")
 
-                new_content = re.sub(pattern2, rf'<img\1src="{url}"', content)
+                new_content = re.sub(pattern2, rf'<img\1src="{url}"\3>', content)
                 if new_content != content:
                     replaced_count += 1
                     logger.debug(f"   ✅ Replaced HTML: {filename} -> {url}")
