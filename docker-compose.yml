@@ -27,11 +27,11 @@ services:
       - "${RUSTFS_PORT:-9000}:9000"
       - "${RUSTFS_CONSOLE_PORT:-9001}:9001"
     volumes:
-      # RustFS 数据存储（持久化）
-      - ./data/rustfs:/data
-      # RustFS 日志（使用命名卷避免 Windows 权限问题）
+      # RustFS 数据存储（使用命名卷避免权限问题）
+      - rustfs-data:/data
+      # RustFS 日志
       - rustfs-logs:/logs
-      # 时区配置
+      # 时区配置（Linux only，Windows/Mac 会自动忽略）
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     environment:
@@ -308,8 +308,9 @@ volumes:
     driver: local
   logs:
     driver: local
-  rustfs:
+  rustfs-data:
     driver: local
+    name: tianshu-rustfs-data
   rustfs-logs:
     driver: local
     name: tianshu-rustfs-logs
