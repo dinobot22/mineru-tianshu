@@ -507,6 +507,12 @@ class MinerUWorkerAPI(ls.LitAPI):
             # 检查文件扩展名
             file_ext = Path(file_path).suffix.lower()
 
+            # 检查是否需要拆分 PDF（仅对非子任务的 PDF 进行判断）
+            if file_ext == ".pdf" and not parent_task_id:
+                if self._should_split_pdf(task_id, file_path, task, options):
+                    # PDF 已被拆分，当前任务已转为父任务，直接返回
+                    return
+
             # 0. 可选：预处理 - 去除水印（仅 PDF，作为预处理步骤）
             if file_ext == ".pdf" and options.get("remove_watermark", False) and self.watermark_handler:
                 logger.info(f"🎨 [Preprocessing] Removing watermark from PDF: {file_path}")
@@ -910,6 +916,99 @@ class MinerUWorkerAPI(ls.LitAPI):
         )
 
         return cleaned_pdf_path
+
+    def _should_split_pdf(self, task_id: str, file_path: str, task: dict, options: dict) -> bool:
+        """
+        判断 PDF 是否需要拆分，如果需要则执行拆分
+
+        Args:
+            task_id: 任务ID
+            file_path: PDF 文件路径
+            task: 任务字典
+            options: 处理选项
+
+        Returns:
+            bool: True 表示已拆分，False 表示不需要拆分
+        """
+        from utils.pdf_utils import get_pdf_page_count, split_pdf_file
+
+        # 读取配置
+        pdf_split_enabled = os.getenv("PDF_SPLIT_ENABLED", "true").lower() == "true"
+        if not pdf_split_enabled:
+            return False
+
+        pdf_split_threshold = int(os.getenv("PDF_SPLIT_THRESHOLD_PAGES", "500"))
+        pdf_split_chunk_size = int(os.getenv("PDF_SPLIT_CHUNK_SIZE", "500"))
+
+        try:
+            # 快速读取 PDF 页数（只读元数据）
+            page_count = get_pdf_page_count(Path(file_path))
+            logger.info(f"📄 PDF has {page_count} pages (threshold: {pdf_split_threshold})")
+
+            # 判断是否需要拆分
+            if page_count <= pdf_split_threshold:
+                return False
+
+            logger.info(
+                f"🔀 Large PDF detected ({page_count} pages), splitting into chunks of {pdf_split_chunk_size} pages"
+            )
+
+            # 将当前任务转为父任务
+            self.task_db.convert_to_parent_task(task_id, child_count=0)
+
+            # 拆分 PDF 文件
+            split_dir = Path(self.output_dir) / "splits" / task_id
+            split_dir.mkdir(parents=True, exist_ok=True)
+
+            chunks = split_pdf_file(
+                pdf_path=Path(file_path),
+                output_dir=split_dir,
+                chunk_size=pdf_split_chunk_size,
+                parent_task_id=task_id,
+            )
+
+            logger.info(f"✂️  PDF split into {len(chunks)} chunks")
+
+            # 为每个分块创建子任务
+            backend = task.get("backend", "auto")
+            priority = task.get("priority", 0)
+            user_id = task.get("user_id")
+
+            for chunk_info in chunks:
+                # 复制选项并添加分块信息
+                chunk_options = options.copy()
+                chunk_options["chunk_info"] = {
+                    "start_page": chunk_info["start_page"],
+                    "end_page": chunk_info["end_page"],
+                    "page_count": chunk_info["page_count"],
+                }
+
+                # 创建子任务
+                child_task_id = self.task_db.create_task(
+                    file_name=f"{Path(file_path).stem}_pages_{chunk_info['start_page']}-{chunk_info['end_page']}.pdf",
+                    file_path=chunk_info["path"],
+                    backend=backend,
+                    options=chunk_options,
+                    priority=priority,
+                    user_id=user_id,
+                    parent_task_id=task_id,
+                )
+
+                logger.info(
+                    f"  ✅ Created subtask {child_task_id}: pages {chunk_info['start_page']}-{chunk_info['end_page']}"
+                )
+
+            # 更新父任务的子任务数量
+            self.task_db.convert_to_parent_task(task_id, child_count=len(chunks))
+
+            logger.info(f"🎉 Large PDF split complete: {len(chunks)} subtasks created for parent task {task_id}")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Failed to split PDF: {e}")
+            logger.warning("⚠️  Falling back to processing as single task")
+            return False
 
     def _merge_parent_task_results(self, parent_task_id: str):
         """

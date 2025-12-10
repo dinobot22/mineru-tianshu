@@ -51,6 +51,7 @@ English | [简体中文](./README.md)
   - Parent-child task system: Automatic subtask management and result merging on completion
   - Intelligent result merging: Preserves original page numbers, merges Markdown and JSON outputs in order
   - Processing time reduced by 40-60% (depending on hardware)
+  - **Async splitting**: Splitting happens in Worker, API responds in milliseconds
 - ✅ **PDF Split Configuration** (New in `.env`)
   - `PDF_SPLIT_ENABLED`: Enable auto-split (default `true`)
   - `PDF_SPLIT_THRESHOLD_PAGES`: Split threshold in pages (default `500`)

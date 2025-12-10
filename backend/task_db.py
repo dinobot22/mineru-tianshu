@@ -551,6 +551,25 @@ class TaskDB:
         logger.info(f"📋 Created parent task: {task_id}")
         return task_id
 
+    def convert_to_parent_task(self, task_id: str, child_count: int = 0):
+        """
+        将普通任务转换为父任务
+
+        Args:
+            task_id: 任务ID
+            child_count: 子任务数量
+        """
+        with self.get_cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE tasks
+                SET is_parent = 1, child_count = ?, status = 'processing'
+                WHERE task_id = ?
+                """,
+                (child_count, task_id),
+            )
+        logger.info(f"🔄 Converted task {task_id} to parent task with {child_count} children")
+
     def create_child_task(
         self,
         parent_task_id: str,

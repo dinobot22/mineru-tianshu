@@ -34,9 +34,6 @@ from auth import (
 from auth.routes import router as auth_router
 from auth.auth_db import AuthDB
 
-# 导入 PDF 工具函数
-from utils.pdf_utils import get_pdf_page_count, split_and_create_subtasks
-
 # 初始化 FastAPI 应用
 app = FastAPI(
     title="MinerU Tianshu API",
@@ -234,63 +231,7 @@ async def submit_task(
             "watermark_dilation": watermark_dilation,
         }
 
-        # 检测是否需要拆分 PDF
-        if temp_file_path.suffix.lower() == ".pdf":
-            # 读取配置
-            pdf_split_enabled = os.getenv("PDF_SPLIT_ENABLED", "true").lower() == "true"
-            pdf_split_threshold = int(os.getenv("PDF_SPLIT_THRESHOLD_PAGES", "500"))
-            pdf_split_chunk_size = int(os.getenv("PDF_SPLIT_CHUNK_SIZE", "500"))
-
-            if pdf_split_enabled:
-                try:
-                    page_count = get_pdf_page_count(temp_file_path)
-
-                    if page_count > pdf_split_threshold:
-                        # 创建主任务
-                        parent_task_id = db.create_parent_task(
-                            file_name=file.filename,
-                            file_path=str(temp_file_path),
-                            backend=backend,
-                            options=options,
-                            priority=priority,
-                            user_id=current_user.user_id,
-                        )
-
-                        # 拆分 PDF 并创建子任务
-                        child_task_ids = await split_and_create_subtasks(
-                            parent_task_id=parent_task_id,
-                            file_path=temp_file_path,
-                            chunk_size=pdf_split_chunk_size,
-                            backend=backend,
-                            options=options,
-                            priority=priority,
-                            user_id=current_user.user_id,
-                            db=db,
-                        )
-
-                        logger.info(f"✅ Large PDF task submitted: {parent_task_id} - {file.filename}")
-                        logger.info(f"   User: {current_user.username} ({current_user.role.value})")
-                        logger.info(f"   Pages: {page_count} (split into {len(child_task_ids)} subtasks)")
-                        logger.info(f"   Backend: {backend}")
-                        logger.info(f"   Priority: {priority}")
-
-                        return {
-                            "success": True,
-                            "task_id": parent_task_id,
-                            "status": "processing",
-                            "message": f"Large PDF split into {len(child_task_ids)} subtasks for parallel processing",
-                            "file_name": file.filename,
-                            "user_id": current_user.user_id,
-                            "is_parent": True,
-                            "subtask_count": len(child_task_ids),
-                            "total_pages": page_count,
-                            "created_at": datetime.now().isoformat(),
-                        }
-                except Exception as e:
-                    logger.warning(f"⚠️  Failed to split PDF, falling back to normal task: {e}")
-                    # 拆分失败，继续创建普通任务
-
-        # 创建普通任务 (小文件或非PDF)
+        # 创建任务（PDF 拆分逻辑由 Worker 处理）
         task_id = db.create_task(
             file_name=file.filename,
             file_path=str(temp_file_path),
