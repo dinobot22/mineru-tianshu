@@ -984,14 +984,14 @@ class MinerUWorkerAPI(ls.LitAPI):
                 }
 
                 # 创建子任务
-                child_task_id = self.task_db.create_task(
+                child_task_id = self.task_db.create_child_task(
+                    parent_task_id=task_id,
                     file_name=f"{Path(file_path).stem}_pages_{chunk_info['start_page']}-{chunk_info['end_page']}.pdf",
                     file_path=chunk_info["path"],
                     backend=backend,
                     options=chunk_options,
                     priority=priority,
                     user_id=user_id,
-                    parent_task_id=task_id,
                 )
 
                 logger.info(
