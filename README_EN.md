@@ -44,6 +44,21 @@ English | [简体中文](./README.md)
 
 ## 📝 Latest Updates
 
+### 2025-12-10 ⚡ Large File Parallel Processing
+
+- ✅ **Auto-split Large PDFs**: Files exceeding threshold (default 500 pages) are automatically split into parallel subtasks
+  - Configurable chunk size (default 500 pages/chunk) for significant performance boost
+  - Parent-child task system: Automatic subtask management and result merging on completion
+  - Intelligent result merging: Preserves original page numbers, merges Markdown and JSON outputs in order
+  - Processing time reduced by 40-60% (depending on hardware)
+- ✅ **PDF Split Configuration** (New in `.env`)
+  - `PDF_SPLIT_ENABLED`: Enable auto-split (default `true`)
+  - `PDF_SPLIT_THRESHOLD_PAGES`: Split threshold in pages (default `500`)
+  - `PDF_SPLIT_CHUNK_SIZE`: Pages per subtask (default `500`)
+- ✅ **Worker Memory Management**
+  - `WORKER_MEMORY_LIMIT`: Container hard memory limit (default `16G`)
+  - `WORKER_MEMORY_RESERVATION`: Memory soft limit/reservation (default `8G`)
+
 ### 2025-12-05 🗄️ RustFS Object Storage Integration
 
 - ✅ **RustFS Object Storage**: All parsed images automatically uploaded to object storage

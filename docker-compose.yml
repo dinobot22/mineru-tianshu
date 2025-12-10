@@ -41,7 +41,7 @@ services:
       - RUSTFS_ROOT_USER=${RUSTFS_ACCESS_KEY:-rustfsadmin}
       - RUSTFS_ROOT_PASSWORD=${RUSTFS_SECRET_KEY:-rustfsadmin}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -105,6 +105,11 @@ services:
 
       # 文件限制（0 表示不限制）
       - MAX_FILE_SIZE=${MAX_FILE_SIZE:-0}  # 不限制文件大小
+
+      # PDF 拆分配置
+      - PDF_SPLIT_ENABLED=${PDF_SPLIT_ENABLED:-true}
+      - PDF_SPLIT_THRESHOLD_PAGES=${PDF_SPLIT_THRESHOLD_PAGES:-500}
+      - PDF_SPLIT_CHUNK_SIZE=${PDF_SPLIT_CHUNK_SIZE:-500}
 
       # 模型路径
       - MODEL_PATH=/app/models
@@ -204,9 +209,18 @@ services:
       - RUSTFS_SECURE=${RUSTFS_SECURE:-false}
       # RUSTFS_PUBLIC_URL: 必须设置为外部可访问的完整 URL
       - RUSTFS_PUBLIC_URL=${RUSTFS_PUBLIC_URL}
+    # 内存限制（兼容旧版 docker-compose）
+    mem_limit: ${WORKER_MEMORY_LIMIT:-16G}
+    memswap_limit: ${WORKER_MEMORY_LIMIT:-16G}
+    mem_reservation: ${WORKER_MEMORY_RESERVATION:-8G}
     deploy:
       resources:
+        limits:
+          # 内存硬限制（Docker Compose v2 / Swarm 模式）
+          memory: ${WORKER_MEMORY_LIMIT:-16G}
         reservations:
+          # 内存软限制（Docker Compose v2 / Swarm 模式）
+          memory: ${WORKER_MEMORY_RESERVATION:-8G}
           devices:
             - driver: nvidia
               count: ${GPU_COUNT:-1}
@@ -298,6 +312,11 @@ networks:
   tianshu-network:
     driver: bridge
     name: tianshu-network
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+          gateway: 172.28.0.1
 
 volumes:
   models:

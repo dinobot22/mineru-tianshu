@@ -66,6 +66,7 @@ class TaskDB:
     def _init_db(self):
         """初始化数据库表"""
         with self.get_cursor() as cursor:
+            # 创建表（如果不存在）
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS tasks (
                     task_id TEXT PRIMARY KEY,
@@ -85,11 +86,35 @@ class TaskDB:
                 )
             """)
 
-            # 创建索引加速查询
+            # 创建基础索引
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_status ON tasks(status)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_priority ON tasks(priority DESC)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON tasks(created_at)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_worker_id ON tasks(worker_id)")
+
+            # 迁移：添加 parent_task_id 等字段（如果不存在）
+            try:
+                cursor.execute("SELECT parent_task_id FROM tasks LIMIT 1")
+            except sqlite3.OperationalError:
+                # 字段不存在，添加新字段
+                logger.info("📊 Migrating database schema: adding parent-child task support")
+                cursor.execute("ALTER TABLE tasks ADD COLUMN parent_task_id TEXT")
+                cursor.execute("ALTER TABLE tasks ADD COLUMN is_parent INTEGER DEFAULT 0")
+                cursor.execute("ALTER TABLE tasks ADD COLUMN child_count INTEGER DEFAULT 0")
+                cursor.execute("ALTER TABLE tasks ADD COLUMN child_completed INTEGER DEFAULT 0")
+                logger.info("✅ Parent-child task fields added")
+
+            # 创建主子任务索引（字段存在后才创建）
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_parent_task ON tasks(parent_task_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_is_parent ON tasks(is_parent)")
+
+            # 迁移：添加 user_id 字段（如果不存在）
+            try:
+                cursor.execute("SELECT user_id FROM tasks LIMIT 1")
+            except sqlite3.OperationalError:
+                logger.info("📊 Migrating database schema: adding user_id field")
+                cursor.execute("ALTER TABLE tasks ADD COLUMN user_id TEXT")
+                logger.info("✅ user_id field added")
 
     def create_task(
         self,
@@ -484,6 +509,270 @@ class TaskDB:
             )
             reset_count = cursor.rowcount
             return reset_count
+
+    # ============================================================================
+    # 主子任务支持 (Parent-Child Task Support)
+    # ============================================================================
+
+    def create_parent_task(
+        self,
+        file_name: str,
+        file_path: str,
+        backend: str = "pipeline",
+        options: dict = None,
+        priority: int = 0,
+        user_id: str = None,
+    ) -> str:
+        """
+        创建主任务（用于大文件拆分）
+
+        Args:
+            file_name: 原始文件名
+            file_path: 原始文件路径
+            backend: 处理后端
+            options: 处理选项
+            priority: 优先级
+            user_id: 用户ID
+
+        Returns:
+            task_id: 主任务ID
+        """
+        task_id = str(uuid.uuid4())
+        with self.get_cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO tasks (
+                    task_id, file_name, file_path, backend, options,
+                    status, priority, user_id, is_parent, child_count
+                ) VALUES (?, ?, ?, ?, ?, 'processing', ?, ?, 1, 0)
+            """,
+                (task_id, file_name, file_path, backend, json.dumps(options or {}), priority, user_id),
+            )
+        logger.info(f"📋 Created parent task: {task_id}")
+        return task_id
+
+    def create_child_task(
+        self,
+        parent_task_id: str,
+        file_name: str,
+        file_path: str,
+        backend: str = "pipeline",
+        options: dict = None,
+        priority: int = 0,
+        user_id: str = None,
+    ) -> str:
+        """
+        创建子任务
+
+        Args:
+            parent_task_id: 父任务ID
+            file_name: 分片文件名
+            file_path: 分片文件路径
+            backend: 处理后端
+            options: 处理选项（包含 chunk_info）
+            priority: 优先级（继承父任务）
+            user_id: 用户ID（继承父任务）
+
+        Returns:
+            task_id: 子任务ID
+        """
+        task_id = str(uuid.uuid4())
+        with self.get_cursor() as cursor:
+            # 创建子任务
+            cursor.execute(
+                """
+                INSERT INTO tasks (
+                    task_id, parent_task_id, file_name, file_path,
+                    backend, options, status, priority, user_id
+                ) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+            """,
+                (
+                    task_id,
+                    parent_task_id,
+                    file_name,
+                    file_path,
+                    backend,
+                    json.dumps(options or {}),
+                    priority,
+                    user_id,
+                ),
+            )
+
+            # 更新父任务的子任务计数
+            cursor.execute(
+                """
+                UPDATE tasks
+                SET child_count = child_count + 1
+                WHERE task_id = ?
+            """,
+                (parent_task_id,),
+            )
+
+        logger.debug(f"📄 Created child task: {task_id} (parent: {parent_task_id})")
+        return task_id
+
+    def on_child_task_completed(self, child_task_id: str) -> Optional[str]:
+        """
+        子任务完成回调
+
+        当子任务完成时调用，更新父任务的完成计数
+        如果所有子任务都完成，返回父任务ID用于触发合并
+
+        Args:
+            child_task_id: 子任务ID
+
+        Returns:
+            parent_task_id: 如果所有子任务完成，返回父任务ID；否则返回 None
+        """
+        with self.get_cursor() as cursor:
+            # 获取父任务ID
+            cursor.execute(
+                """
+                SELECT parent_task_id FROM tasks WHERE task_id = ?
+            """,
+                (child_task_id,),
+            )
+            row = cursor.fetchone()
+
+            if not row or not row["parent_task_id"]:
+                return None  # 不是子任务
+
+            parent_task_id = row["parent_task_id"]
+
+            # 更新父任务的完成计数
+            cursor.execute(
+                """
+                UPDATE tasks
+                SET child_completed = child_completed + 1
+                WHERE task_id = ?
+            """,
+                (parent_task_id,),
+            )
+
+            # 检查是否所有子任务都完成了
+            cursor.execute(
+                """
+                SELECT child_count, child_completed, file_name
+                FROM tasks WHERE task_id = ?
+            """,
+                (parent_task_id,),
+            )
+            parent = cursor.fetchone()
+
+            if parent and parent["child_completed"] >= parent["child_count"]:
+                # 所有子任务完成
+                logger.info(
+                    f"🎉 All subtasks completed for parent task {parent_task_id} "
+                    f"({parent['child_completed']}/{parent['child_count']}) - {parent['file_name']}"
+                )
+                return parent_task_id
+
+            if parent:
+                logger.info(
+                    f"⏳ Subtask progress: {parent['child_completed']}/{parent['child_count']} "
+                    f"for parent task {parent_task_id}"
+                )
+
+        return None
+
+    def on_child_task_failed(self, child_task_id: str, error_message: str):
+        """
+        子任务失败回调
+
+        当子任务失败时，标记父任务为失败状态
+
+        Args:
+            child_task_id: 子任务ID
+            error_message: 错误信息
+        """
+        with self.get_cursor() as cursor:
+            # 获取父任务ID
+            cursor.execute(
+                """
+                SELECT parent_task_id FROM tasks WHERE task_id = ?
+            """,
+                (child_task_id,),
+            )
+            row = cursor.fetchone()
+
+            if not row or not row["parent_task_id"]:
+                return  # 不是子任务
+
+            parent_task_id = row["parent_task_id"]
+
+            # 标记父任务为失败
+            cursor.execute(
+                """
+                UPDATE tasks
+                SET status = 'failed',
+                    completed_at = CURRENT_TIMESTAMP,
+                    error_message = ?
+                WHERE task_id = ?
+                AND status = 'processing'
+            """,
+                (f"Subtask {child_task_id} failed: {error_message}", parent_task_id),
+            )
+
+            if cursor.rowcount > 0:
+                logger.error(f"❌ Parent task {parent_task_id} marked as failed due to subtask failure")
+
+    def get_task_with_children(self, task_id: str) -> Optional[Dict]:
+        """
+        获取任务及其所有子任务
+
+        Args:
+            task_id: 任务ID
+
+        Returns:
+            task: 包含 children 字段的任务字典
+        """
+        with self.get_cursor() as cursor:
+            # 获取主任务
+            cursor.execute("SELECT * FROM tasks WHERE task_id = ?", (task_id,))
+            parent_row = cursor.fetchone()
+
+            if not parent_row:
+                return None
+
+            parent = dict(parent_row)
+
+            # 如果是主任务，获取所有子任务
+            if parent.get("is_parent"):
+                cursor.execute(
+                    """
+                    SELECT * FROM tasks
+                    WHERE parent_task_id = ?
+                    ORDER BY created_at
+                """,
+                    (task_id,),
+                )
+                children = [dict(row) for row in cursor.fetchall()]
+                parent["children"] = children
+            else:
+                parent["children"] = []
+
+            return parent
+
+    def get_child_tasks(self, parent_task_id: str) -> List[Dict]:
+        """
+        获取父任务的所有子任务
+
+        Args:
+            parent_task_id: 父任务ID
+
+        Returns:
+            children: 子任务列表
+        """
+        with self.get_cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT * FROM tasks
+                WHERE parent_task_id = ?
+                ORDER BY created_at
+            """,
+                (parent_task_id,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
 
 
 if __name__ == "__main__":

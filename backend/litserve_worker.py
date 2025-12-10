@@ -498,6 +498,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         task_id = task["task_id"]
         file_path = task["file_path"]
         options = json.loads(task.get("options", "{}"))
+        parent_task_id = task.get("parent_task_id")
 
         try:
             # 根据 backend 选择处理方式（从 task 字段读取，不是从 options 读取）
@@ -630,6 +631,22 @@ class MinerUWorkerAPI(ls.LitAPI):
                 error_message=None,
             )
 
+            # 如果是子任务,检查是否需要触发合并
+            if parent_task_id:
+                parent_id_to_merge = self.task_db.on_child_task_completed(task_id)
+
+                if parent_id_to_merge:
+                    # 所有子任务完成,执行合并
+                    logger.info(f"🔀 All subtasks completed, merging results for parent task {parent_id_to_merge}")
+                    try:
+                        self._merge_parent_task_results(parent_id_to_merge)
+                    except Exception as merge_error:
+                        logger.error(f"❌ Failed to merge parent task {parent_id_to_merge}: {merge_error}")
+                        # 标记父任务为失败
+                        self.task_db.update_task_status(
+                            parent_id_to_merge, "failed", error_message=f"Merge failed: {merge_error}"
+                        )
+
             # 清理显存（如果是 GPU）
             if "cuda" in str(self.device).lower():
                 clean_memory()
@@ -638,6 +655,11 @@ class MinerUWorkerAPI(ls.LitAPI):
             # 更新任务状态为失败
             error_msg = f"{type(e).__name__}: {str(e)}"
             self.task_db.update_task_status(task_id=task_id, status="failed", result_path=None, error_message=error_msg)
+
+            # 如果是子任务失败,标记父任务失败
+            if parent_task_id:
+                self.task_db.on_child_task_failed(task_id, error_msg)
+
             raise
 
     def _process_with_mineru(self, file_path: str, options: dict) -> dict:
@@ -888,6 +910,161 @@ class MinerUWorkerAPI(ls.LitAPI):
         )
 
         return cleaned_pdf_path
+
+    def _merge_parent_task_results(self, parent_task_id: str):
+        """
+        合并父任务的所有子任务结果
+
+        Args:
+            parent_task_id: 父任务ID
+        """
+        try:
+            # 获取父任务和所有子任务
+            parent_task = self.task_db.get_task_with_children(parent_task_id)
+
+            if not parent_task:
+                raise ValueError(f"Parent task {parent_task_id} not found")
+
+            children = parent_task.get("children", [])
+
+            if not children:
+                raise ValueError(f"No child tasks found for parent {parent_task_id}")
+
+            # 按页码排序子任务
+            children.sort(key=lambda x: json.loads(x.get("options", "{}")).get("chunk_info", {}).get("start_page", 0))
+
+            logger.info(f"🔀 Merging {len(children)} subtask results for parent task {parent_task_id}")
+
+            # 创建父任务输出目录
+            parent_output_dir = Path(self.output_dir) / Path(parent_task["file_path"]).stem
+            parent_output_dir.mkdir(parents=True, exist_ok=True)
+
+            # 合并 Markdown
+            markdown_parts = []
+            json_pages = []
+            has_json = False
+
+            for idx, child in enumerate(children):
+                if child["status"] != "completed":
+                    logger.warning(f"⚠️  Child task {child['task_id']} not completed (status: {child['status']})")
+                    continue
+
+                result_dir = Path(child["result_path"])
+                chunk_info = json.loads(child.get("options", "{}")).get("chunk_info", {})
+
+                # 读取 Markdown
+                md_files = list(result_dir.rglob("*.md"))
+                if md_files:
+                    md_file = None
+                    for f in md_files:
+                        if f.name == "result.md":
+                            md_file = f
+                            break
+                    if not md_file:
+                        md_file = md_files[0]
+
+                    content = md_file.read_text(encoding="utf-8")
+
+                    # 添加分页标记
+                    if chunk_info:
+                        markdown_parts.append(
+                            f"\n\n<!-- Pages {chunk_info['start_page']}-{chunk_info['end_page']} -->\n\n"
+                        )
+                    markdown_parts.append(content)
+
+                    logger.info(
+                        f"   ✅ Merged chunk {idx+1}/{len(children)}: "
+                        f"pages {chunk_info.get('start_page', '?')}-{chunk_info.get('end_page', '?')}"
+                    )
+
+                # 读取 JSON (如果有)
+                json_files = [
+                    f
+                    for f in result_dir.rglob("*.json")
+                    if f.name in ["content.json", "result.json"] or "_content_list.json" in f.name
+                ]
+
+                if json_files:
+                    try:
+                        json_file = json_files[0]
+                        json_content = json.loads(json_file.read_text(encoding="utf-8"))
+
+                        # 合并 JSON 页面数据
+                        if "pages" in json_content:
+                            has_json = True
+                            page_offset = chunk_info.get("start_page", 1) - 1
+
+                            for page in json_content["pages"]:
+                                # 调整页码
+                                if "page_number" in page:
+                                    page["page_number"] += page_offset
+                                json_pages.append(page)
+                    except Exception as json_e:
+                        logger.warning(f"⚠️  Failed to merge JSON for chunk {idx+1}: {json_e}")
+
+            # 保存合并后的 Markdown
+            merged_md = "".join(markdown_parts)
+            md_output = parent_output_dir / "result.md"
+            md_output.write_text(merged_md, encoding="utf-8")
+            logger.info(f"📄 Merged Markdown saved: {md_output}")
+
+            # 保存合并后的 JSON (如果有)
+            if has_json and json_pages:
+                merged_json = {"pages": json_pages}
+                json_output = parent_output_dir / "result.json"
+                json_output.write_text(json.dumps(merged_json, indent=2, ensure_ascii=False), encoding="utf-8")
+                logger.info(f"📄 Merged JSON saved: {json_output}")
+
+            # 规范化输出
+            normalize_output(parent_output_dir)
+
+            # 更新父任务状态
+            self.task_db.update_task_status(
+                task_id=parent_task_id, status="completed", result_path=str(parent_output_dir)
+            )
+
+            logger.info(f"✅ Parent task {parent_task_id} merged successfully")
+
+            # 清理子任务的临时文件
+            self._cleanup_child_task_files(children)
+
+        except Exception as e:
+            logger.error(f"❌ Failed to merge parent task {parent_task_id}: {e}")
+            logger.exception(e)
+            raise
+
+    def _cleanup_child_task_files(self, children: list):
+        """
+        清理子任务的临时文件
+
+        Args:
+            children: 子任务列表
+        """
+        try:
+            for child in children:
+                # 删除子任务的分片 PDF 文件
+                if child.get("file_path"):
+                    chunk_file = Path(child["file_path"])
+                    if chunk_file.exists() and chunk_file.is_file():
+                        try:
+                            chunk_file.unlink()
+                            logger.debug(f"🗑️  Deleted chunk file: {chunk_file.name}")
+                        except Exception as e:
+                            logger.warning(f"⚠️  Failed to delete chunk file {chunk_file.name}: {e}")
+
+                # 可选: 删除子任务的结果目录 (如果需要节省空间)
+                # 注意: 这会删除中间结果,可能影响调试
+                # if child.get("result_path"):
+                #     result_dir = Path(child["result_path"])
+                #     if result_dir.exists() and result_dir.is_dir():
+                #         try:
+                #             shutil.rmtree(result_dir)
+                #             logger.debug(f"🗑️  Deleted result dir: {result_dir.name}")
+                #         except Exception as e:
+                #             logger.warning(f"⚠️  Failed to delete result dir {result_dir.name}: {e}")
+
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to cleanup child task files: {e}")
 
     def _process_with_format_engine(self, file_path: str, options: dict, engine_name: Optional[str] = None) -> dict:
         """

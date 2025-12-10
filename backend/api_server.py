@@ -19,6 +19,7 @@ from datetime import datetime
 import os
 import re
 import uuid
+import json
 from urllib.parse import quote
 
 from task_db import TaskDB
@@ -32,6 +33,9 @@ from auth import (
 )
 from auth.routes import router as auth_router
 from auth.auth_db import AuthDB
+
+# 导入 PDF 工具函数
+from utils.pdf_utils import get_pdf_page_count, split_and_create_subtasks
 
 # 初始化 FastAPI 应用
 app = FastAPI(
@@ -213,28 +217,87 @@ async def submit_task(
                     break
                 temp_file.write(chunk)
 
-        # 创建任务 (关联用户)
+        # 构建处理选项
+        options = {
+            "lang": lang,
+            "method": method,
+            "formula_enable": formula_enable,
+            "table_enable": table_enable,
+            # 视频处理参数
+            "keep_audio": keep_audio,
+            "enable_keyframe_ocr": enable_keyframe_ocr,
+            "ocr_backend": ocr_backend,
+            "keep_keyframes": keep_keyframes,
+            # 水印去除参数
+            "remove_watermark": remove_watermark,
+            "watermark_conf_threshold": watermark_conf_threshold,
+            "watermark_dilation": watermark_dilation,
+        }
+
+        # 检测是否需要拆分 PDF
+        if temp_file_path.suffix.lower() == ".pdf":
+            # 读取配置
+            pdf_split_enabled = os.getenv("PDF_SPLIT_ENABLED", "true").lower() == "true"
+            pdf_split_threshold = int(os.getenv("PDF_SPLIT_THRESHOLD_PAGES", "500"))
+            pdf_split_chunk_size = int(os.getenv("PDF_SPLIT_CHUNK_SIZE", "500"))
+
+            if pdf_split_enabled:
+                try:
+                    page_count = get_pdf_page_count(temp_file_path)
+
+                    if page_count > pdf_split_threshold:
+                        # 创建主任务
+                        parent_task_id = db.create_parent_task(
+                            file_name=file.filename,
+                            file_path=str(temp_file_path),
+                            backend=backend,
+                            options=options,
+                            priority=priority,
+                            user_id=current_user.user_id,
+                        )
+
+                        # 拆分 PDF 并创建子任务
+                        child_task_ids = await split_and_create_subtasks(
+                            parent_task_id=parent_task_id,
+                            file_path=temp_file_path,
+                            chunk_size=pdf_split_chunk_size,
+                            backend=backend,
+                            options=options,
+                            priority=priority,
+                            user_id=current_user.user_id,
+                            db=db,
+                        )
+
+                        logger.info(f"✅ Large PDF task submitted: {parent_task_id} - {file.filename}")
+                        logger.info(f"   User: {current_user.username} ({current_user.role.value})")
+                        logger.info(f"   Pages: {page_count} (split into {len(child_task_ids)} subtasks)")
+                        logger.info(f"   Backend: {backend}")
+                        logger.info(f"   Priority: {priority}")
+
+                        return {
+                            "success": True,
+                            "task_id": parent_task_id,
+                            "status": "processing",
+                            "message": f"Large PDF split into {len(child_task_ids)} subtasks for parallel processing",
+                            "file_name": file.filename,
+                            "user_id": current_user.user_id,
+                            "is_parent": True,
+                            "subtask_count": len(child_task_ids),
+                            "total_pages": page_count,
+                            "created_at": datetime.now().isoformat(),
+                        }
+                except Exception as e:
+                    logger.warning(f"⚠️  Failed to split PDF, falling back to normal task: {e}")
+                    # 拆分失败，继续创建普通任务
+
+        # 创建普通任务 (小文件或非PDF)
         task_id = db.create_task(
             file_name=file.filename,
             file_path=str(temp_file_path),
             backend=backend,
-            options={
-                "lang": lang,
-                "method": method,
-                "formula_enable": formula_enable,
-                "table_enable": table_enable,
-                # 视频处理参数
-                "keep_audio": keep_audio,
-                "enable_keyframe_ocr": enable_keyframe_ocr,
-                "ocr_backend": ocr_backend,
-                "keep_keyframes": keep_keyframes,
-                # 水印去除参数
-                "remove_watermark": remove_watermark,
-                "watermark_conf_threshold": watermark_conf_threshold,
-                "watermark_dilation": watermark_dilation,
-            },
+            options=options,
             priority=priority,
-            user_id=current_user.user_id,  # 关联用户
+            user_id=current_user.user_id,
         )
 
         logger.info(f"✅ Task submitted: {task_id} - {file.filename}")
@@ -299,7 +362,37 @@ async def get_task_status(
         "retry_count": task["retry_count"],
         "user_id": task.get("user_id"),
     }
-    logger.info(f"✅ Task status: {task['status']} - (result_path: {task['result_path']})")
+
+    # 如果是主任务,添加子任务进度信息
+    if task.get("is_parent"):
+        child_count = task.get("child_count", 0)
+        child_completed = task.get("child_completed", 0)
+
+        response["is_parent"] = True
+        response["subtask_progress"] = {
+            "total": child_count,
+            "completed": child_completed,
+            "percentage": round(child_completed / child_count * 100, 1) if child_count > 0 else 0,
+        }
+
+        # 可选: 返回所有子任务状态
+        try:
+            children = db.get_child_tasks(task_id)
+            response["subtasks"] = [
+                {
+                    "task_id": child["task_id"],
+                    "status": child["status"],
+                    "chunk_info": json.loads(child.get("options", "{}")).get("chunk_info"),
+                    "error_message": child.get("error_message"),
+                }
+                for child in children
+            ]
+            logger.info(f"✅ Parent task status: {task['status']} - Progress: {child_completed}/{child_count} subtasks")
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to load subtasks: {e}")
+
+    else:
+        logger.info(f"✅ Task status: {task['status']} - (result_path: {task.get('result_path')})")
 
     # 如果任务已完成，尝试返回解析内容
     if task["status"] == "completed":
