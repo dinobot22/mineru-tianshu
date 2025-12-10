@@ -68,6 +68,7 @@ paddleocr[doc-parser]
 PyMuPDF>=1.24.0  # PDF processing
 Pillow>=11.0.0   # Image processing (Python 3.12 需要 11.0+)
 img2pdf>=0.5.0   # Image to PDF conversion
+pikepdf>=9.0.0   # Fast PDF manipulation (for PDF splitting, 6-8x faster than pypdf)
 
 # Image Augmentation (Python 3.12 兼容版本)
 albumentations>=1.4.4,<2.0.0

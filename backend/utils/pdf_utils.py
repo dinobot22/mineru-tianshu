@@ -120,7 +120,7 @@ def split_pdf_file(
     pdf_path: Path, output_dir: Path, chunk_size: int = 500, parent_task_id: str = None
 ) -> List[Dict[str, any]]:
     """
-    拆分 PDF 文件为多个分片
+    拆分 PDF 文件为多个分片（使用 pikepdf 实现，性能优化）
 
     Args:
         pdf_path: PDF 文件路径
@@ -148,13 +148,15 @@ def split_pdf_file(
         >>> # ]
     """
     try:
-        from pypdf import PdfReader, PdfWriter
+        import pikepdf
 
-        reader = PdfReader(str(pdf_path))
-        total_pages = len(reader.pages)
+        # 打开 PDF（只加载元数据，不加载页面内容）
+        pdf = pikepdf.open(pdf_path)
+        total_pages = len(pdf.pages)
 
         logger.info(f"✂️  Splitting PDF: {pdf_path.name} ({total_pages} pages)")
         logger.info(f"   Chunk size: {chunk_size} pages")
+        logger.info("   Using pikepdf for optimized performance")
 
         chunks = []
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -163,10 +165,9 @@ def split_pdf_file(
             end_page = min(i + chunk_size, total_pages)
             chunk_page_count = end_page - i
 
-            # 创建分片 PDF
-            writer = PdfWriter()
-            for page_num in range(i, end_page):
-                writer.add_page(reader.pages[page_num])
+            # 创建分片 PDF（引用复制，不是深拷贝）
+            chunk_pdf = pikepdf.new()
+            chunk_pdf.pages.extend(pdf.pages[i:end_page])
 
             # 生成分片文件名
             if parent_task_id:
@@ -176,9 +177,8 @@ def split_pdf_file(
 
             chunk_path = output_dir / chunk_filename
 
-            # 保存分片文件
-            with open(chunk_path, "wb") as f:
-                writer.write(f)
+            # 保存分片文件（自动压缩优化）
+            chunk_pdf.save(chunk_path)
 
             chunk_info = {
                 "path": str(chunk_path),
@@ -190,12 +190,13 @@ def split_pdf_file(
 
             logger.info(f"   ✅ Created chunk {len(chunks)}: pages {i+1}-{end_page} ({chunk_page_count} pages)")
 
+        pdf.close()
         logger.info(f"✅ Split into {len(chunks)} chunks")
         return chunks
 
     except ImportError:
-        logger.error("❌ pypdf not installed. Install with: pip install pypdf")
-        raise RuntimeError("pypdf is required for PDF splitting")
+        logger.error("❌ pikepdf not installed. Install with: pip install pikepdf")
+        raise RuntimeError("pikepdf is required for PDF splitting")
     except Exception as e:
         logger.error(f"❌ Failed to split PDF: {e}")
         raise
