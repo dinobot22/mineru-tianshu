@@ -438,8 +438,7 @@ async def get_task_status(
                 logger.warning(f"⚠️  No markdown files found in {result_dir}")
         else:
             logger.error(f"❌ Result directory does not exist: {result_dir}")
-    elif task["status"] == "completed":
-        logger.warning("⚠️  Task completed but result_path is empty")
+
     else:
         logger.info(f"ℹ️  Task status is {task['status']}, skipping content loading")
 

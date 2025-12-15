@@ -211,7 +211,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
 async def parse_document(args: dict) -> list[TextContent]:
     """解析文档 - 支持 Base64 和 URL 两种输入方式"""
     async with aiohttp.ClientSession() as session:
-        temp_file = None
+        temp_file_path = None
         file_data = None
         file_name = None
 
@@ -366,9 +366,6 @@ async def parse_document(args: dict) -> list[TextContent]:
                 task_id = result["task_id"]
                 logger.info(f"✅ Task submitted: {task_id}")
 
-            # 关闭文件
-            if file_data:
-                file_data.close()
 
             # 是否等待完成
             if not args.get("wait_for_completion", True):
@@ -503,10 +500,19 @@ async def parse_document(args: dict) -> list[TextContent]:
             ]
 
         finally:
-            # 清理临时文件
-            if temp_file and Path(temp_file.name).exists():
+            # 清理文件和临时文件
+            if file_data is not None:
                 try:
-                    Path(temp_file.name).unlink()
+                    if not file_data.closed:
+                        file_data.close()
+                        logger.debug(f"Closed file handle for: {file_name}")
+                except Exception as e:
+                    logger.warning(f"Failed to close file handle: {e}")
+            if temp_file_path is not None:
+                try:
+                    if temp_file_path.exists():
+                        temp_file_path.unlink()
+                        logger.info(f"Cleaned temp file: {temp_file_path}")
                 except Exception as e:
                     logger.warning(f"Failed to delete temp file: {e}")
 
