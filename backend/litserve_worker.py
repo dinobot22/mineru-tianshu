@@ -776,7 +776,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         result = self.paddleocr_vl_vllm_engine.parse(file_path, output_path=str(output_dir))
 
         # 规范化输出（统一文件名和目录结构）
-        normalize_output(output_dir)
+        normalize_output(output_dir, handle_method="paddleocr-vl")
 
         # 返回结果
         return {"result_path": str(output_dir), "content": result.get("markdown", "")}
