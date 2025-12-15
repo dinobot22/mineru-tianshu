@@ -366,7 +366,6 @@ async def parse_document(args: dict) -> list[TextContent]:
                 task_id = result["task_id"]
                 logger.info(f"✅ Task submitted: {task_id}")
 
-
             # 是否等待完成
             if not args.get("wait_for_completion", True):
                 return [

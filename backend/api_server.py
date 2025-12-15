@@ -8,21 +8,20 @@ MinerU Tianshu - API Server
 企业级认证授权: JWT Token + API Key + SSO
 """
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Depends
-from fastapi.responses import JSONResponse, FileResponse
-from fastapi.middleware.cors import CORSMiddleware
-from pathlib import Path
-from loguru import logger
-import uvicorn
-from typing import Optional
-from datetime import datetime
+import json
 import os
 import re
 import uuid
-import json
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
 from urllib.parse import quote
 
-from task_db import TaskDB
+import uvicorn
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, FileResponse
+from loguru import logger
 
 # 导入认证模块
 from auth import (
@@ -31,8 +30,9 @@ from auth import (
     get_current_active_user,
     require_permission,
 )
-from auth.routes import router as auth_router
 from auth.auth_db import AuthDB
+from auth.routes import router as auth_router
+from task_db import TaskDB
 
 # 初始化 FastAPI 应用
 app = FastAPI(
@@ -438,7 +438,6 @@ async def get_task_status(
                 logger.warning(f"⚠️  No markdown files found in {result_dir}")
         else:
             logger.error(f"❌ Result directory does not exist: {result_dir}")
-
     else:
         logger.info(f"ℹ️  Task status is {task['status']}, skipping content loading")
 
@@ -765,7 +764,6 @@ async def serve_output_file(file_path: str):
 
 logger.info(f"📁 File service mounted: /v1/files/output -> {OUTPUT_DIR}")
 logger.info("   Frontend can access images via: /api/v1/files/output/{task_id}/images/xxx.jpg (Nginx will strip /api/)")
-
 
 if __name__ == "__main__":
     # 从环境变量读取端口，默认为8000
