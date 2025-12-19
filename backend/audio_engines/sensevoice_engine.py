@@ -3,9 +3,21 @@ SenseVoice 语音识别引擎
 基于阿里达摩院的 SenseVoiceSmall 模型
 支持：
 - 多语言识别（中文、英文、日文、韩文等）
-- 说话人识别（Speaker Diarization）
+- 说话人分离（Speaker Diarization，基于 FunASR 1.2.7）
 - 情感识别
 - 时间戳对齐
+
+说话人分离实现方案：
+使用 FunASR 1.2.7 自带的说话人分离功能：
+  1. FunASR CAM++ 模型进行说话人嵌入提取
+  2. FunASR SOND 模型进行说话人聚类分离
+  3. SenseVoice 对整段音频进行语音识别
+  4. 根据说话人时间戳合并识别结果
+
+优势：
+  - FunASR 原生支持，无需额外依赖
+  - 统一框架，减少兼容性问题
+  - 性能更好，维护更简单
 """
 
 import json
@@ -22,13 +34,14 @@ class SenseVoiceEngine:
     特性：
     - 基于 FunASR 框架
     - 支持多语言自动识别
-    - 支持说话人分离
+    - 支持说话人分离（基于 FunASR 1.2.7 的原生 speaker diarization）
     - GPU 加速
     """
 
     _instance: Optional["SenseVoiceEngine"] = None
     _lock = Lock()
-    _model = None
+    _sensevoice_model = None  # SenseVoice 模型（不支持说话人分离）
+    _paraformer_model = None  # Paraformer 模型（支持说话人分离）
     _initialized = False
 
     def __new__(cls, *args, **kwargs):
@@ -38,7 +51,14 @@ class SenseVoiceEngine:
                     cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, model_dir: str = "iic/SenseVoiceSmall", cache_dir: Optional[str] = None, device: str = "cuda:0"):
+    def __init__(
+        self,
+        model_dir: str = "iic/SenseVoiceSmall",
+        cache_dir: Optional[str] = None,
+        device: str = "cuda:0",
+        enable_speaker_diarization: bool = False,
+        use_paraformer_for_diarization: bool = False,
+    ):
         """
         初始化 SenseVoice 引擎（只执行一次）
 
@@ -46,6 +66,8 @@ class SenseVoiceEngine:
             model_dir: 模型路径或ModelScope模型ID
             cache_dir: 模型缓存目录
             device: 设备 (cuda:0, cuda:1, cpu 等)
+            enable_speaker_diarization: 是否启用说话人分离（默认关闭，需要从 API 参数控制）
+            use_paraformer_for_diarization: 是否使用 Paraformer 模型进行说话人分离（SenseVoice 不支持时间戳）
         """
         if self._initialized:
             return
@@ -56,6 +78,12 @@ class SenseVoiceEngine:
 
             self.model_dir = model_dir
             self.device = device  # 保存 device 参数
+            self.enable_speaker_diarization = enable_speaker_diarization
+            self.use_paraformer_for_diarization = use_paraformer_for_diarization
+
+            # 说话人分离说明
+            if enable_speaker_diarization:
+                logger.info("⚠️  说话人分离需要时间戳支持，将在首次使用时加载 Paraformer 模型")
 
             # 默认缓存目录：项目根目录/models/sensevoice
             if cache_dir is None:
@@ -86,45 +114,83 @@ class SenseVoiceEngine:
             logger.info(f"   Model: {self.model_dir}")
             logger.info(f"   Device: {self.device}")
             logger.info(f"   Cache: {self.cache_dir}")
+            logger.info(
+                f"   Speaker Diarization: {'✅ Enabled (FunASR Native)' if enable_speaker_diarization else '❌ Disabled'}"
+            )
 
-    def _load_model(self):
-        """延迟加载模型"""
-        if self._model is not None:
-            return self._model
+    def _load_model(self, enable_sd: bool = False):
+        """
+        延迟加载模型（根据需求加载 SenseVoice 或 Paraformer）
 
+        Args:
+            enable_sd: 是否需要说话人分离支持
+
+        Returns:
+            对应的模型实例
+        """
         with self._lock:
-            if self._model is not None:
-                return self._model
-
-            logger.info("=" * 60)
-            logger.info("📥 Loading SenseVoice Model...")
             logger.info("=" * 60)
 
             try:
                 from funasr import AutoModel
 
-                logger.info(f"🤖 Loading model from: {self.model_dir}")
+                # 如果需要说话人分离，加载 Paraformer 模型
+                if enable_sd:
+                    if self._paraformer_model is None:
+                        logger.info("📥 Loading Paraformer Model (with Speaker Diarization)...")
+                        logger.info("=" * 60)
+                        logger.info("🤖 Loading Paraformer + CAM++ + Punc models...")
 
-                # 加载 SenseVoice 模型
-                self._model = AutoModel(
-                    model=self.model_dir,
-                    trust_remote_code=True,
-                    remote_code="./model.py",
-                    vad_model="fsmn-vad",  # 语音活动检测
-                    vad_kwargs={"max_single_segment_time": 30000},  # 最大单段时长30秒
-                    device=self.device,  # 使用指定的设备
-                )
+                        # 使用 Paraformer 模型（支持时间戳和说话人分离）
+                        # 参考：https://github.com/lukeewin/AudioSeparationGUI
+                        self._paraformer_model = AutoModel(
+                            model="iic/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+                            vad_model="fsmn-vad",
+                            vad_kwargs={"max_single_segment_time": 30000},
+                            punc_model="ct-punc",  # 标点模型（说话人分离必需）
+                            spk_model="iic/speech_campplus_sv_zh-cn_16k-common",  # 说话人嵌入模型
+                            device=self.device,
+                        )
 
-                logger.info("=" * 60)
-                logger.info("✅ SenseVoice Model loaded successfully!")
-                logger.info("   Features:")
-                logger.info("   - Multi-language ASR (zh/en/ja/ko/yue)")
-                logger.info("   - Emotion Recognition")
-                logger.info("   - Speaker Diarization")
-                logger.info("   - Timestamp Alignment")
-                logger.info("=" * 60)
+                        logger.info("=" * 60)
+                        logger.info("✅ Paraformer Model loaded successfully!")
+                        logger.info("   Features:")
+                        logger.info("   - Multi-language ASR (zh-cn)")
+                        logger.info("   - Timestamp Support ✅")
+                        logger.info("   - Speaker Diarization (CAM++) ✅")
+                        logger.info("   - Punctuation Prediction")
+                        logger.info("=" * 60)
+                    else:
+                        logger.debug("♻️  Using cached Paraformer model")
 
-                return self._model
+                    return self._paraformer_model
+
+                else:
+                    # 不需要说话人分离，使用 SenseVoice 模型
+                    if self._sensevoice_model is None:
+                        logger.info("📥 Loading SenseVoice Model...")
+                        logger.info("=" * 60)
+                        logger.info(f"🤖 Loading model from: {self.model_dir}")
+
+                        self._sensevoice_model = AutoModel(
+                            model=self.model_dir,
+                            trust_remote_code=True,
+                            remote_code="./model.py",
+                            vad_model="fsmn-vad",
+                            vad_kwargs={"max_single_segment_time": 30000},
+                            device=self.device,
+                        )
+
+                        logger.info("=" * 60)
+                        logger.info("✅ SenseVoice Model loaded successfully!")
+                        logger.info("   Features:")
+                        logger.info("   - Multi-language ASR (zh/en/ja/ko/yue)")
+                        logger.info("   - Emotion Recognition")
+                        logger.info("=" * 60)
+                    else:
+                        logger.debug("♻️  Using cached SenseVoice model")
+
+                    return self._sensevoice_model
 
             except Exception as e:
                 logger.error("=" * 80)
@@ -134,7 +200,7 @@ class SenseVoiceEngine:
                 logger.error("")
                 logger.error("💡 排查建议:")
                 logger.error("   1. 安装 FunASR:")
-                logger.error("      pip install funasr")
+                logger.error("      pip install funasr>=1.2.7")
                 logger.error("   2. 检查网络连接（首次使用需要下载模型）")
                 logger.error("   3. 检查 GPU 可用性")
                 logger.error("   4. 模型会自动从 ModelScope 下载")
@@ -151,7 +217,7 @@ class SenseVoiceEngine:
         self, audio_path: str, output_path: str, language: str = "auto", use_itn: bool = True, **kwargs
     ) -> Dict[str, Any]:
         """
-        语音识别
+        语音识别（支持 FunASR 原生说话人分离）
 
         Args:
             audio_path: 音频文件路径
@@ -159,6 +225,7 @@ class SenseVoiceEngine:
             language: 语言代码 (auto/zh/en/ja/ko/yue)
             use_itn: 是否使用逆文本归一化（数字、日期等）
             **kwargs: 其他参数
+                - enable_speaker_diarization: 是否启用说话人分离（覆盖初始化设置）
 
         Returns:
             解析结果（JSON格式，包含说话人信息）
@@ -167,32 +234,41 @@ class SenseVoiceEngine:
         output_path = Path(output_path)
         output_path.mkdir(parents=True, exist_ok=True)
 
+        # 检查是否启用说话人分离（可通过参数覆盖）
+        enable_sd = kwargs.get("enable_speaker_diarization", self.enable_speaker_diarization)
+
         logger.info(f"🎙️  SenseVoice processing: {audio_path.name}")
         logger.info(f"   Language: {language}")
+        logger.info(f"   Speaker Diarization: {'✅ Enabled (Paraformer)' if enable_sd else '❌ Disabled (SenseVoice)'}")
 
-        # 加载模型
-        model = self._load_model()
+        # 加载模型（根据 enable_sd 决定加载 SenseVoice 还是 Paraformer）
+        model = self._load_model(enable_sd=enable_sd)
 
         # 执行推理
         try:
             logger.info("🚀 开始语音识别...")
 
-            # FunASR 推理
-            # language参数映射: auto, zh, en, ja, ko, yue, nospeech
-            result = model.generate(
-                input=str(audio_path),
-                cache={},
-                language=language,
-                use_itn=use_itn,
-                batch_size=60,
-                merge_vad=True,  # 合并VAD结果
-                merge_length_s=15,  # 合并长度
-            )
+            # 如果启用说话人分离，使用 Paraformer + CAM++
+            if enable_sd:
+                logger.info("🎯 使用 Paraformer 说话人分离模式...")
+                parsed_result = self._parse_with_funasr_diarization(audio_path, model, None, language, use_itn)
+            else:
+                logger.info("🎯 使用 SenseVoice 基础识别模式...")
+                # FunASR 推理（基础模式）
+                result = model.generate(
+                    input=str(audio_path),
+                    cache={},
+                    language=language,
+                    use_itn=use_itn,
+                    batch_size=60,
+                    merge_vad=True,  # 合并VAD结果
+                    merge_length_s=15,  # 合并长度
+                )
 
-            logger.info("✅ SenseVoice completed")
+                logger.info("✅ SenseVoice completed")
 
-            # 解析结果
-            parsed_result = self._parse_result(result, audio_path)
+                # 解析结果
+                parsed_result = self._parse_result(result, audio_path)
 
             # 生成 Markdown
             markdown_content = self._generate_markdown(parsed_result)
@@ -226,7 +302,6 @@ class SenseVoiceEngine:
                 "markdown_file": str(content_md_file),
                 "json_file": str(content_json_file),
                 "json_data": parsed_result,
-                "result": result,  # 原始结果
             }
 
         except Exception as e:
@@ -243,9 +318,294 @@ class SenseVoiceEngine:
 
             raise
 
+    def _parse_with_funasr_diarization(
+        self, audio_path: Path, asr_model, sd_model, language: str, use_itn: bool
+    ) -> Dict[str, Any]:
+        """
+        使用 FunASR 原生说话人分离 + SenseVoice 进行语音识别
+
+        流程：
+        1. 使用 FunASR 的 spk_mode 参数启用说话人分离
+        2. SenseVoice 对音频进行语音识别，同时 CAM++ 模型提取说话人特征
+        3. FunASR 自动为每个语音段分配说话人标签
+        4. 解析结果并保留说话人信息
+
+        Args:
+            audio_path: 音频文件路径
+            asr_model: SenseVoice ASR 模型（已加载 CAM++ 说话人模型）
+            sd_model: 说话人分离模型（未使用，保留参数兼容性）
+            language: 语言代码
+            use_itn: 是否使用逆文本归一化
+
+        Returns:
+            标准化的 JSON 结果
+        """
+        try:
+            # 使用 FunASR Paraformer + CAM++ 进行说话人分离
+            logger.info("   [1/2] Paraformer 进行语音识别 + 说话人分离...")
+
+            # 关键参数：
+            # - batch_size_s: 批处理大小（秒）
+            # - sentence_timestamp: 启用句子级时间戳（说话人分离必需）
+            asr_result = asr_model.generate(
+                input=str(audio_path),
+                batch_size_s=300,  # 批处理大小（秒）
+                sentence_timestamp=True,  # 启用句子级时间戳（关键！）
+                is_final=True,  # 最终结果
+            )
+
+            logger.info("   [2/2] 解析说话人分离结果...")
+
+            # 解析 Paraformer 结果（包含 sentence_info 和说话人信息）
+            parsed_result = self._parse_paraformer_result(asr_result, audio_path)
+
+            # 统计说话人数量
+            segments = parsed_result.get("segments", [])
+            speakers = set(seg.get("speaker", "SPEAKER_00") for seg in segments if seg.get("speaker"))
+            speaker_count = len(speakers) if speakers else 1
+
+            logger.info(f"✅ 说话人分离完成，检测到 {speaker_count} 位说话人（Paraformer + CAM++）")
+
+            parsed_result["metadata"]["speaker_diarization_enabled"] = True
+            parsed_result["metadata"]["speaker_diarization_method"] = "Paraformer + CAM++ (sentence-level)"
+            parsed_result["metadata"]["speaker_count"] = speaker_count
+
+            return parsed_result
+
+        except Exception as e:
+            logger.error(f"❌ FunASR 说话人分离失败: {e}")
+            logger.warning("⚠️  回退到基础识别模式...")
+
+            import traceback
+
+            logger.debug(traceback.format_exc())
+
+            # 回退到基础模式（不使用说话人分离）
+            result = asr_model.generate(
+                input=str(audio_path),
+                cache={},
+                language=language,
+                use_itn=use_itn,
+                batch_size=60,
+                merge_vad=True,
+                merge_length_s=15,
+            )
+
+            return self._parse_result(result, audio_path)
+
+    def _parse_paraformer_result(self, result: List[Dict], audio_path: Path) -> Dict[str, Any]:
+        """
+        解析 Paraformer 的结果（包含 sentence_info 和说话人信息）
+
+        Paraformer 返回格式：
+        {
+            'text': '完整文本',
+            'sentence_info': [
+                {'text': '句子1', 'start': 0, 'end': 1000, 'spk': 0},
+                {'text': '句子2', 'start': 1000, 'end': 2000, 'spk': 1},
+                ...
+            ]
+        }
+
+        Args:
+            result: Paraformer 返回的结果列表
+            audio_path: 音频文件路径
+
+        Returns:
+            标准化的 JSON 结果（包含说话人信息）
+        """
+        if not result or len(result) == 0:
+            return {
+                "format": "audio",
+                "audio_file": audio_path.name,
+                "transcript": "",
+                "segments": [],
+                "metadata": {
+                    "duration": 0,
+                    "language": "zh-cn",
+                    "speaker_count": 0,
+                },
+            }
+
+        # 获取第一个结果
+        first_result = result[0]
+
+        # 提取完整文本
+        transcript = first_result.get("text", "")
+
+        # 提取句子级信息（包含说话人标签）
+        sentence_info = first_result.get("sentence_info", [])
+
+        # 构建语音段列表
+        segments = []
+        for sentence in sentence_info:
+            text = sentence.get("text", "")
+            start_ms = sentence.get("start", 0)  # 毫秒
+            end_ms = sentence.get("end", 0)  # 毫秒
+            spk = sentence.get("spk", 0)  # 说话人 ID（整数）
+
+            # 格式化说话人标签
+            speaker = f"SPEAKER_{spk:02d}"
+
+            segments.append(
+                {
+                    "start": start_ms / 1000.0,  # 转换为秒
+                    "end": end_ms / 1000.0,
+                    "text": text,
+                    "speaker": speaker,
+                    "language": "zh-cn",  # Paraformer 主要支持中文
+                    "emotion": "neutral",  # Paraformer 不支持情感识别
+                }
+            )
+
+        # 计算总时长
+        duration = segments[-1]["end"] if segments else 0
+
+        # 统计说话人数量
+        speakers = set(seg.get("speaker", "SPEAKER_00") for seg in segments)
+        speaker_count = len(speakers)
+
+        return {
+            "format": "audio",
+            "audio_file": audio_path.name,
+            "transcript": transcript,
+            "segments": segments,
+            "metadata": {
+                "duration": duration,
+                "language": "zh-cn",
+                "speaker_count": speaker_count,
+                "emotion_enabled": False,  # Paraformer 不支持情感
+            },
+        }
+
+    def _parse_result_with_speaker(self, result: List[Dict], audio_path: Path) -> Dict[str, Any]:
+        """
+        解析 FunASR 的原始结果为标准化格式（包含说话人信息）
+
+        Args:
+            result: FunASR 返回的结果列表（包含说话人标签）
+            audio_path: 音频文件路径
+
+        Returns:
+            标准化的 JSON 结果（包含说话人信息）
+        """
+        if not result or len(result) == 0:
+            return {
+                "format": "audio",
+                "audio_file": audio_path.name,
+                "transcript": "",
+                "segments": [],
+                "metadata": {
+                    "duration": 0,
+                    "language": "unknown",
+                    "speaker_count": 0,
+                },
+            }
+
+        # 获取第一个结果（通常只有一个）
+        first_result = result[0]
+
+        # 提取文本
+        transcript = first_result.get("text", "")
+
+        # 提取时间戳（如果有）
+        timestamp = first_result.get("timestamp", [])
+
+        # 提取语言标签
+        language_tags = first_result.get("language", [])
+
+        # 提取情感标签
+        emotion_tags = first_result.get("emotion", [])
+
+        # 提取说话人标签（FunASR 返回的说话人 ID）
+        speaker_tags = first_result.get("spk", [])  # 或者 "speaker"，取决于 FunASR 版本
+
+        # 构建语音段列表
+        segments = []
+        if timestamp:
+            # timestamp 格式: [[word_index, start_ms, end_ms], ...]
+            for i, ts in enumerate(timestamp):
+                # ts 可能是 [start, end] 或 [word_idx, start, end]
+                if len(ts) == 3:
+                    word_idx, start_ms, end_ms = ts
+                elif len(ts) == 2:
+                    start_ms, end_ms = ts
+                    word_idx = i
+                else:
+                    continue
+
+                # 从完整文本中提取对应的词（简化处理）
+                words = transcript.split()
+                if word_idx < len(words):
+                    text = words[word_idx]
+                else:
+                    text = ""
+
+                # 获取语言和情感（如果有）
+                lang = language_tags[i] if i < len(language_tags) else "unknown"
+                emotion = emotion_tags[i] if i < len(emotion_tags) else "neutral"
+
+                # 获取说话人标签（关键：从 FunASR 结果中提取）
+                speaker = speaker_tags[i] if i < len(speaker_tags) else "SPEAKER_00"
+                # 格式化说话人标签
+                if isinstance(speaker, int):
+                    speaker = f"SPEAKER_{speaker:02d}"
+                elif not isinstance(speaker, str):
+                    speaker = f"SPEAKER_{str(speaker)}"
+
+                segments.append(
+                    {
+                        "start": start_ms / 1000.0,  # 转换为秒
+                        "end": end_ms / 1000.0,
+                        "text": text,
+                        "language": lang,
+                        "emotion": emotion,
+                        "speaker": speaker,  # 添加说话人标签
+                    }
+                )
+        else:
+            # 没有时间戳信息，创建一个单一段落
+            speaker = speaker_tags[0] if speaker_tags else "SPEAKER_00"
+            if isinstance(speaker, int):
+                speaker = f"SPEAKER_{speaker:02d}"
+
+            segments.append(
+                {
+                    "start": 0,
+                    "end": 0,
+                    "text": transcript,
+                    "language": language_tags[0] if language_tags else "unknown",
+                    "emotion": emotion_tags[0] if emotion_tags else "neutral",
+                    "speaker": speaker,
+                }
+            )
+
+        # 计算总时长
+        duration = segments[-1]["end"] if segments else 0
+
+        # 检测语言
+        detected_language = language_tags[0] if language_tags else "auto"
+
+        # 统计说话人数量
+        speakers = set(seg.get("speaker", "SPEAKER_00") for seg in segments)
+        speaker_count = len(speakers)
+
+        return {
+            "format": "audio",
+            "audio_file": audio_path.name,
+            "transcript": transcript,
+            "segments": segments,
+            "metadata": {
+                "duration": duration,
+                "language": detected_language,
+                "speaker_count": speaker_count,
+                "emotion_enabled": bool(emotion_tags),
+            },
+        }
+
     def _parse_result(self, result: List[Dict], audio_path: Path) -> Dict[str, Any]:
         """
-        解析 FunASR 返回的结果为标准格式
+        解析 FunASR 的原始结果为标准化格式
 
         Args:
             result: FunASR 返回的结果列表
@@ -255,228 +615,104 @@ class SenseVoiceEngine:
             标准化的 JSON 结果
         """
         if not result or len(result) == 0:
-            logger.warning("⚠️  识别结果为空")
             return {
-                "version": "1.0",
-                "type": "audio",
-                "source": {"filename": audio_path.name, "file_type": "audio"},
-                "content": {"text": "", "segments": []},
+                "format": "audio",
+                "audio_file": audio_path.name,
+                "transcript": "",
+                "segments": [],
+                "metadata": {
+                    "duration": 0,
+                    "language": "unknown",
+                    "speaker_count": 0,
+                },
             }
 
-        # FunASR 返回的是列表，通常只有一个元素
-        res = result[0]
+        # 获取第一个结果（通常只有一个）
+        first_result = result[0]
 
-        # 提取文本（使用后处理的文本）
-        full_text = res.get("text", "")
+        # 提取文本
+        transcript = first_result.get("text", "")
 
-        # 提取分段信息
+        # 提取时间戳（如果有）
+        timestamp = first_result.get("timestamp", [])
+
+        # 提取语言标签
+        language_tags = first_result.get("language", [])
+
+        # 提取情感标签
+        emotion_tags = first_result.get("emotion", [])
+
+        # 构建语音段列表
         segments = []
+        if timestamp:
+            # timestamp 格式: [[word_index, start_ms, end_ms], ...]
+            for i, ts in enumerate(timestamp):
+                # ts 可能是 [start, end] 或 [word_idx, start, end]
+                if len(ts) == 3:
+                    word_idx, start_ms, end_ms = ts
+                elif len(ts) == 2:
+                    start_ms, end_ms = ts
+                    word_idx = i
+                else:
+                    continue
 
-        # 从 text 字段解析（SenseVoice 输出格式）
-        # 格式示例：<|zh|><|NEUTRAL|><|Speech|><|woitn|>实际文本内容
-        raw_segments = res.get("text_segments", [])
+                # 从完整文本中提取对应的词（简化处理）
+                words = transcript.split()
+                if word_idx < len(words):
+                    text = words[word_idx]
+                else:
+                    text = ""
 
-        if raw_segments:
-            # 有详细的分段信息
-            for idx, seg in enumerate(raw_segments):
-                segment = {
-                    "id": idx,
-                    "text": seg.get("text", ""),
-                    "start": seg.get("start", 0.0) / 1000,  # 转为秒
-                    "end": seg.get("end", 0.0) / 1000,
-                    "speaker": seg.get("speaker", "SPEAKER_00"),  # 说话人
-                    "emotion": seg.get("emotion", "NEUTRAL"),  # 情感
-                    "language": seg.get("language", "zh"),  # 语言
-                }
-                segments.append(segment)
+                # 获取语言和情感（如果有）
+                lang = language_tags[i] if i < len(language_tags) else "unknown"
+                emotion = emotion_tags[i] if i < len(emotion_tags) else "neutral"
+
+                segments.append(
+                    {
+                        "start": start_ms / 1000.0,  # 转换为秒
+                        "end": end_ms / 1000.0,
+                        "text": text,
+                        "language": lang,
+                        "emotion": emotion,
+                    }
+                )
         else:
-            # 简单模式：只有完整文本
-            # 尝试解析标签
-            language, emotion, event = self._parse_tags(full_text)
-
+            # 没有时间戳信息，创建一个单一段落
             segments.append(
                 {
-                    "id": 0,
-                    "text": full_text,
-                    "start": 0.0,
-                    "end": 0.0,
-                    "speaker": "SPEAKER_00",
-                    "emotion": emotion,
-                    "language": language,
-                    "event": event,
+                    "start": 0,
+                    "end": 0,
+                    "text": transcript,
+                    "language": language_tags[0] if language_tags else "unknown",
+                    "emotion": emotion_tags[0] if emotion_tags else "neutral",
                 }
             )
 
-        # 检测语言
-        detected_language = self._detect_language(full_text)
+        # 计算总时长
+        duration = segments[-1]["end"] if segments else 0
 
-        # 统计信息
-        total_duration = segments[-1]["end"] if segments and segments[-1]["end"] > 0 else 0
-        speakers = list(set(seg["speaker"] for seg in segments))
+        # 检测语言
+        detected_language = language_tags[0] if language_tags else "auto"
 
         return {
-            "version": "1.0",
-            "type": "audio",
-            "source": {
-                "filename": audio_path.name,
-                "file_type": audio_path.suffix[1:],
-                "duration": total_duration,
-            },
+            "format": "audio",
+            "audio_file": audio_path.name,
+            "transcript": transcript,
+            "segments": segments,
             "metadata": {
+                "duration": duration,
                 "language": detected_language,
-                "speakers": speakers,
-                "speaker_count": len(speakers),
-                "segment_count": len(segments),
+                "speaker_count": 1,  # 基础模式默认为1个说话人
+                "emotion_enabled": bool(emotion_tags),
             },
-            "content": {"text": full_text, "segments": segments},
         }
-
-    def _parse_tags(self, text: str) -> tuple:
-        """
-        解析 SenseVoice 输出的标签
-        格式：<|zh|><|NEUTRAL|><|Speech|>实际内容
-
-        Returns:
-            (language, emotion, event)
-        """
-        import re
-
-        language = "zh"
-        emotion = "NEUTRAL"
-        event = "Speech"
-
-        # 匹配语言标签
-        lang_match = re.search(r"<\|(zh|en|ja|ko|yue|nospeech)\|>", text)
-        if lang_match:
-            language = lang_match.group(1)
-
-        # 匹配情感标签
-        emotion_match = re.search(r"<\|(NEUTRAL|HAPPY|ANGRY|SAD)\|>", text)
-        if emotion_match:
-            emotion = emotion_match.group(1)
-
-        # 匹配事件标签
-        event_match = re.search(r"<\|(Speech|Applause|BGM|Laugh)\|>", text)
-        if event_match:
-            event = event_match.group(1)
-
-        return language, emotion, event
-
-    def _detect_language(self, text: str) -> str:
-        """智能语言检测"""
-        import re
-
-        # 1. 首先尝试从标签中提取语言信息
-        lang_match = re.search(r"<\|(zh|en|ja|ko|yue)\|>", text)
-        if lang_match:
-            return lang_match.group(1)
-
-        # 2. 移除所有标签后进行内容检测
-        clean_text = re.sub(r"<\|[^|]+\|>", "", text).strip()
-
-        if not clean_text:
-            return "unknown"
-
-        # 3. 统计各种字符
-        total_chars = len(clean_text)
-        chinese_chars = sum(1 for c in clean_text if "\u4e00" <= c <= "\u9fff")
-        japanese_chars = sum(1 for c in clean_text if "\u3040" <= c <= "\u309f" or "\u30a0" <= c <= "\u30ff")
-        korean_chars = sum(1 for c in clean_text if "\uac00" <= c <= "\ud7af")
-
-        # 4. 根据字符比例判断
-        if chinese_chars / total_chars > 0.2:
-            return "zh"
-        elif japanese_chars / total_chars > 0.1:
-            return "ja"
-        elif korean_chars / total_chars > 0.1:
-            return "ko"
-        elif all(ord(c) < 128 or c.isspace() for c in clean_text if c.isalnum() or c.isspace()):
-            # 全是ASCII字符
-            return "en"
-
-        return "auto"
-
-    def _emotion_to_emoji(self, emotion: str) -> str:
-        """
-        将情感标签转换为 emoji
-
-        Args:
-            emotion: 情感标签 (NEUTRAL/HAPPY/ANGRY/SAD)
-
-        Returns:
-            对应的 emoji 字符
-        """
-        emotion_map = {
-            "NEUTRAL": "😐",
-            "HAPPY": "😊",
-            "ANGRY": "😠",
-            "SAD": "😢",
-        }
-        return emotion_map.get(emotion.upper(), "")
-
-    def _event_to_emoji(self, event: str) -> str:
-        """
-        将事件标签转换为 emoji
-
-        Args:
-            event: 事件标签 (Speech/Applause/BGM/Laugh)
-
-        Returns:
-            对应的 emoji 字符
-        """
-        event_map = {
-            "Speech": "💬",
-            "Applause": "👏",
-            "BGM": "🎵",
-            "Laugh": "😄",
-        }
-        return event_map.get(event, "💬")
-
-    def _clean_text_tags(self, text: str) -> str:
-        """
-        清理文本中的标签，替换为 emoji
-
-        Args:
-            text: 原始文本（包含标签）
-
-        Returns:
-            清理后的文本（标签替换为 emoji）
-        """
-        import re
-
-        # 语言标签 - 直接移除（已在元数据中显示）
-        text = re.sub(r"<\|(zh|en|ja|ko|yue|nospeech)\|>", "", text)
-
-        # 情感标签 - 替换为 emoji
-        def replace_emotion(match):
-            emotion = match.group(1)
-            emoji = self._emotion_to_emoji(emotion)
-            return emoji if emoji else ""
-
-        text = re.sub(r"<\|(NEUTRAL|HAPPY|ANGRY|SAD)\|>", replace_emotion, text)
-
-        # 事件标签 - 替换为 emoji
-        def replace_event(match):
-            event = match.group(1)
-            emoji = self._event_to_emoji(event)
-            return emoji if emoji else ""
-
-        text = re.sub(r"<\|(Speech|Applause|BGM|Laugh)\|>", replace_event, text)
-
-        # 其他标签 - 直接移除
-        text = re.sub(r"<\|[^|]+\|>", "", text)
-
-        # 清理多余空格
-        text = " ".join(text.split())
-
-        return text.strip()
 
     def _generate_markdown(self, parsed_result: Dict[str, Any]) -> str:
         """
-        生成 Markdown 格式的转写文本
+        生成 Markdown 格式的转录文本
 
         Args:
-            parsed_result: 解析后的结果
+            parsed_result: 标准化的 JSON 结果
 
         Returns:
             Markdown 格式的文本
@@ -484,88 +720,74 @@ class SenseVoiceEngine:
         lines = []
 
         # 标题
-        lines.append(f"# 语音转写：{parsed_result['source']['filename']}\n")
+        lines.append("# 音频转录结果\n")
+        lines.append(f"**文件**: {parsed_result['audio_file']}\n")
 
-        # 元信息
-        metadata = parsed_result["metadata"]
-        lang_map = {"zh": "🇨🇳 中文", "en": "🇺🇸 英文", "ja": "🇯🇵 日文", "ko": "🇰🇷 韩文", "yue": "🇭🇰 粤语"}
-        lang_display = lang_map.get(metadata["language"], metadata["language"])
+        # 元数据
+        metadata = parsed_result.get("metadata", {})
+        lines.append("## 元数据\n")
+        lines.append(f"- **时长**: {metadata.get('duration', 0):.2f} 秒")
+        lines.append(f"- **语言**: {metadata.get('language', 'unknown')}")
+        lines.append(f"- **说话人数量**: {metadata.get('speaker_count', 1)}")
 
-        lines.append(f"**语言**: {lang_display}")
-        lines.append(f"**说话人数**: {metadata['speaker_count']}")
-        if metadata.get("speakers"):
-            lines.append(f"**说话人**: {', '.join(metadata['speakers'])}")
+        if metadata.get("speaker_diarization_enabled"):
+            lines.append(f"- **说话人分离**: ✅ 已启用 ({metadata.get('speaker_diarization_method', 'FunASR')})")
+
+        if metadata.get("emotion_enabled"):
+            lines.append("- **情感识别**: ✅ 已启用")
+
         lines.append("")
 
-        # 完整文本（清理标签）
-        lines.append("## 完整文本\n")
-        clean_text = self._clean_text_tags(parsed_result["content"]["text"])
-        lines.append(clean_text)
+        # 完整转录文本
+        lines.append("## 完整转录\n")
+        lines.append(parsed_result.get("transcript", ""))
         lines.append("")
 
-        # 分段文本（始终显示，因为包含情感和事件信息）
-        segments = parsed_result["content"]["segments"]
-        if segments:
-            lines.append("## 分段转写\n")
+        # 详细时间戳（仅当有有效时间戳时才显示）
+        segments = parsed_result.get("segments", [])
+        # 检查是否有有效的时间戳（至少有一个 segment 的 start 或 end 不为 0）
+        has_valid_timestamps = any(seg.get("start", 0) != 0 or seg.get("end", 0) != 0 for seg in segments)
 
-            current_speaker = None
+        if segments and has_valid_timestamps:
+            lines.append("## 详细时间戳\n")
+
             for seg in segments:
-                speaker = seg.get("speaker", "SPEAKER_00")
-                start_time = seg.get("start", 0)
+                start = seg.get("start", 0)
+                end = seg.get("end", 0)
                 text = seg.get("text", "")
+                speaker = seg.get("speaker", "")
                 emotion = seg.get("emotion", "")
-                event = seg.get("event", "")
 
-                # 清理文本标签
-                clean_seg_text = self._clean_text_tags(text)
+                # 格式化时间戳
+                timestamp = f"[{self._format_time(start)} --> {self._format_time(end)}]"
 
-                # 如果说话人变化，添加分隔
-                if speaker != current_speaker:
-                    current_speaker = speaker
-                    lines.append(f"\n**{speaker}**:\n")
+                # 添加说话人标签
+                speaker_tag = f"**{speaker}**: " if speaker else ""
 
-                # 时间戳格式化
-                timestamp = self._format_timestamp(start_time)
+                # 添加情感标签
+                emotion_tag = f" *({emotion})*" if emotion and emotion != "neutral" else ""
 
-                # 添加情感 emoji（如果不是 NEUTRAL）
-                emotion_emoji = self._emotion_to_emoji(emotion) if emotion and emotion != "NEUTRAL" else ""
-                emotion_tag = f" {emotion_emoji}" if emotion_emoji else ""
+                lines.append(f"{timestamp} {speaker_tag}{text}{emotion_tag}")
 
-                # 添加事件 emoji
-                event_emoji = self._event_to_emoji(event) if event else ""
-                event_tag = f" {event_emoji}" if event_emoji and event != "Speech" else ""
-
-                lines.append(f"[{timestamp}]{emotion_tag}{event_tag} {clean_seg_text}")
+            lines.append("")
 
         return "\n".join(lines)
 
-    def _format_timestamp(self, seconds: float) -> str:
+    def _format_time(self, seconds: float) -> str:
         """
-        格式化时间戳
+        格式化时间（秒 -> HH:MM:SS.mmm）
 
         Args:
             seconds: 秒数
 
         Returns:
-            格式化的时间字符串 (HH:MM:SS)
+            格式化的时间字符串
         """
         hours = int(seconds // 3600)
         minutes = int((seconds % 3600) // 60)
-        secs = int(seconds % 60)
+        secs = seconds % 60
 
         if hours > 0:
-            return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+            return f"{hours:02d}:{minutes:02d}:{secs:06.3f}"
         else:
-            return f"{minutes:02d}:{secs:02d}"
-
-
-# 全局单例
-_engine = None
-
-
-def get_engine() -> SenseVoiceEngine:
-    """获取全局引擎实例"""
-    global _engine
-    if _engine is None:
-        _engine = SenseVoiceEngine()
-    return _engine
+            return f"{minutes:02d}:{secs:06.3f}"

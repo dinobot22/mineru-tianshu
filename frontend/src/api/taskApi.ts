@@ -49,6 +49,11 @@ export async function submitTask(request: SubmitTaskRequest): Promise<SubmitTask
     formData.append('watermark_dilation', String(request.watermark_dilation))
   }
 
+  // Audio 专属参数 (SenseVoice)
+  if (request.enable_speaker_diarization !== undefined) {
+    formData.append('enable_speaker_diarization', String(request.enable_speaker_diarization))
+  }
+
   const response = await apiClient.post<SubmitTaskResponse>(
     '/api/v1/tasks/submit',
     formData,

@@ -88,10 +88,13 @@ contourpy>=1.3.0   # matplotlib 依赖,Python 3.12 兼容
 # flash-attn>=2.7.3; platform_system=="Linux"
 
 # ============================================================================
-# Audio Processing (SenseVoice)
+# Audio Processing (SenseVoice with FunASR 1.2.7 Speaker Diarization)
 # ============================================================================
-funasr>=1.1.0  # FunASR framework for SenseVoice
+funasr>=1.2.7  # FunASR framework for SenseVoice with built-in speaker diarization
 ffmpeg-python  # Audio processing (also used by video processing)
+soundfile>=0.12.0  # Audio file I/O (required for audio segment extraction)
+
+# FunASR 1.2.7 自带说话人分离功能（无需额外依赖）
 
 # ============================================================================
 # Video Processing (Keyframe Extraction) - Python 3.12 兼容
@@ -122,6 +125,7 @@ modelscope>=1.18.0  # Faster model downloads in China
 # ============================================================================
 fastapi==0.115.6          # 固定版本
 uvicorn[standard]==0.34.0 # 固定版本
+python-multipart>=0.0.9   # FastAPI 文件上传必需
 
 # LitServe for GPU Load Balancing
 litserve==0.2.16          # 固定版本

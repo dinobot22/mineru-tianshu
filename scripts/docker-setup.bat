@@ -128,7 +128,13 @@ echo [OK] Directory structure created
 REM Build images
 echo.
 echo [INFO] Building Docker images (first run may take 10-30 minutes)...
+echo [INFO] Using BuildKit cache optimization to avoid redundant downloads on subsequent builds
 echo [INFO] Please wait patiently...
+
+REM 启用 BuildKit 缓存挂载，避免重复下载大文件
+set DOCKER_BUILDKIT=1
+set COMPOSE_DOCKER_CLI_BUILD=1
+
 %COMPOSE_CMD% build --parallel
 if errorlevel 1 (
     echo [ERROR] Image build failed
@@ -136,6 +142,7 @@ if errorlevel 1 (
     goto end
 )
 echo [OK] Image build completed
+echo [INFO] Tip: Subsequent builds will use cache and be much faster
 
 REM Start services
 echo.

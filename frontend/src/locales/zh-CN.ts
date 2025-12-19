@@ -227,6 +227,15 @@ export default {
     watermarkPDFTip1: '可编辑 PDF：直接删除水印对象',
     watermarkPDFTip2: '扫描件 PDF：转图片 → 去水印 → 重组 PDF',
     watermarkPDFTip3: '图片格式：直接使用 YOLO + LaMa 处理',
+    // Audio options
+    audioOptions: '🎙️ 音频处理选项',
+    enableSpeakerDiarization: '启用说话人分离',
+    speakerDiarizationBadge: '多说话人',
+    speakerDiarizationHint: '🎯 自动识别音频中的不同说话人，为每个语音段标注说话人标签',
+    speakerDiarizationNote: '📌 说话人分离说明：',
+    speakerDiarizationNoteTip1: '首次使用需要下载 Paraformer + CAM++ 模型（约 400MB）',
+    speakerDiarizationNoteTip2: '自动基于声音特征识别不同说话人（SPEAKER_00, SPEAKER_01...）',
+    speakerDiarizationNoteTip3: '适合会议记录、访谈录音等多人对话场景',
   },
   status: {
     pending: '待处理',

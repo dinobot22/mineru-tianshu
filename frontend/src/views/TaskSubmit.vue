@@ -196,6 +196,43 @@
           </div>
         </div>
 
+        <!-- Audio (SenseVoice) 专属配置 -->
+        <div v-if="config.backend === 'sensevoice'" class="mt-6 pt-6 border-t border-gray-200">
+          <h3 class="text-base font-semibold text-gray-900 mb-4">{{ $t('task.audioOptions') }}</h3>
+
+          <div class="space-y-4">
+            <!-- 说话人分离选项 -->
+            <div>
+              <label class="flex items-center">
+                <input
+                  v-model="config.enable_speaker_diarization"
+                  type="checkbox"
+                  class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <span class="ml-2 text-sm text-gray-700 font-medium">
+                  {{ $t('task.enableSpeakerDiarization') }}
+                  <span class="ml-1 px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">{{ $t('task.speakerDiarizationBadge') }}</span>
+                </span>
+              </label>
+              <p class="text-xs text-gray-500 ml-6 mt-1">
+                {{ $t('task.speakerDiarizationHint') }}
+              </p>
+            </div>
+
+            <!-- 说话人分离提示 -->
+            <div v-if="config.enable_speaker_diarization" class="bg-green-50 border border-green-200 rounded-lg p-3">
+              <p class="text-xs text-green-800">
+                <strong>{{ $t('task.speakerDiarizationNote') }}</strong>
+              </p>
+              <ul class="text-xs text-green-700 mt-1 ml-4 list-disc space-y-0.5">
+                <li>{{ $t('task.speakerDiarizationNoteTip1') }}</li>
+                <li>{{ $t('task.speakerDiarizationNoteTip2') }}</li>
+                <li>{{ $t('task.speakerDiarizationNoteTip3') }}</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
         <!-- PaddleOCR-VL 专属配置 -->
         <div v-if="config.backend === 'paddleocr-vl'" class="mt-6 pt-6 border-t border-gray-200">
           <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
@@ -448,6 +485,8 @@ const config = reactive({
   enable_keyframe_ocr: false,
   ocr_backend: 'paddleocr-vl',
   keep_keyframes: false,
+  // Audio (SenseVoice) 专属配置
+  enable_speaker_diarization: false,
   // 水印去除配置
   remove_watermark: false,
   watermark_conf_threshold: 0.35,

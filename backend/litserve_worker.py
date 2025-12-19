@@ -803,6 +803,7 @@ class MinerUWorkerAPI(ls.LitAPI):
             output_path=str(output_dir),
             language=options.get("lang", "auto"),
             use_itn=options.get("use_itn", True),
+            enable_speaker_diarization=options.get("enable_speaker_diarization", False),  # 从 API 参数控制
         )
 
         # 规范化输出（统一文件名和目录结构）

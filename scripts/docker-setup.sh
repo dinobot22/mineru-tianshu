@@ -119,11 +119,17 @@ create_directories() {
 build_images() {
     log_info "Building Docker images (first run may take 10-30 minutes)..."
     log_warning "First build requires downloading large AI packages: PaddlePaddle ~1.8GB, PyTorch ~2GB"
+    log_info "Using BuildKit cache optimization to avoid redundant downloads on subsequent builds"
     echo ""
+
+    # 启用 BuildKit 缓存挂载，避免重复下载大文件
+    export DOCKER_BUILDKIT=1
+    export COMPOSE_DOCKER_CLI_BUILD=1
 
     $COMPOSE_CMD build --parallel
 
     log_success "Image build completed"
+    log_info "Tip: Subsequent builds will use cache and be much faster"
 }
 
 # ============================================================================

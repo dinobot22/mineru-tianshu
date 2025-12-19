@@ -6,17 +6,22 @@
 # Build images
 # ============================================================================
 
-# Build all images (parallel build)
+# Build all images (parallel build with BuildKit cache optimization)
+export DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1
 docker-compose build --parallel
 
 # Build backend image only
+export DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1
 docker-compose build backend
 
 # Build frontend image only
 docker-compose build frontend
 
-# Force rebuild (no cache)
+# Force rebuild (no cache, use only when troubleshooting)
 docker-compose build --no-cache
+
+# Show build progress in detail
+docker-compose build --progress=plain backend
 
 # ============================================================================
 # Start services
@@ -130,8 +135,17 @@ docker cp local_file.txt mineru-backend:/app/
 # Copy file from container to host
 docker cp mineru-backend:/app/logs/backend.log ./
 
-# Clean unused Docker resources
+# Clean unused Docker resources (CAUTION: will clear build cache)
 docker system prune -a
+
+# View BuildKit cache usage
+docker buildx du
+
+# Clear BuildKit cache only (keep other resources)
+docker buildx prune -f
+
+# Clear BuildKit cache (interactive, keeps recent cache)
+docker buildx prune
 
 # ============================================================================
 # Performance monitoring

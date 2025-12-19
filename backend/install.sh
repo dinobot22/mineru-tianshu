@@ -83,10 +83,12 @@ echo "✓ Utilities installed"
 
 # Step 8: Resolve all remaining dependencies with legacy resolver
 echo ""
-echo "[Step 8/8] Resolving remaining dependencies..."
+echo "[Step 8/9] Resolving remaining dependencies..."
 echo "  Using legacy resolver to avoid 'resolution-too-deep' errors..."
 echo "  This may show some warnings, but should complete successfully..."
-pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple --use-deprecated=legacy-resolver
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    --use-deprecated=legacy-resolver \
+    --no-build-isolation
 echo "✓ All dependencies resolved"
 
 # Verification
@@ -143,10 +145,10 @@ except Exception as e:
     print(f"⚠ PaddleOCR-VL: {str(e)[:80]}")
     # Not critical if this fails
 
-# Check FunASR (Audio Processing)
+# Check FunASR (Audio Processing with Speaker Diarization)
 try:
     import funasr
-    print("✓ FunASR: Ready (Audio Processing)")
+    print("✓ FunASR: Ready (Audio Processing + Speaker Diarization)")
 except Exception as e:
     print(f"⚠ FunASR: {str(e)[:80]}")
     # Not critical if this fails

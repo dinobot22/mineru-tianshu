@@ -227,6 +227,15 @@ export default {
     watermarkPDFTip1: 'Editable PDF: Directly delete watermark objects',
     watermarkPDFTip2: 'Scanned PDF: Convert to image → Remove watermark → Reassemble PDF',
     watermarkPDFTip3: 'Image format: Directly use YOLO + LaMa processing',
+    // Audio options
+    audioOptions: '🎙️ Audio Processing Options',
+    enableSpeakerDiarization: 'Enable speaker diarization',
+    speakerDiarizationBadge: 'Multi-speaker',
+    speakerDiarizationHint: '🎯 Automatically identify different speakers in audio and label each speech segment',
+    speakerDiarizationNote: '📌 Speaker Diarization Notes:',
+    speakerDiarizationNoteTip1: 'First use requires downloading Paraformer + CAM++ models (~400MB)',
+    speakerDiarizationNoteTip2: 'Automatically identifies different speakers based on voice features (SPEAKER_00, SPEAKER_01...)',
+    speakerDiarizationNoteTip3: 'Suitable for meeting records, interview recordings, and multi-person conversation scenarios',
   },
   status: {
     pending: 'Pending',

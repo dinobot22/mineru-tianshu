@@ -133,6 +133,8 @@ export interface SubmitTaskRequest {
   remove_watermark?: boolean
   watermark_conf_threshold?: number
   watermark_dilation?: number
+  // Audio 专属参数 (SenseVoice)
+  enable_speaker_diarization?: boolean
 }
 
 // 任务信息

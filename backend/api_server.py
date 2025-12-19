@@ -184,6 +184,10 @@ async def submit_task(
     enable_keyframe_ocr: bool = Form(False, description="是否启用视频关键帧OCR识别（实验性功能）"),
     ocr_backend: str = Form("paddleocr-vl", description="关键帧OCR引擎: paddleocr-vl"),
     keep_keyframes: bool = Form(False, description="是否保留提取的关键帧图像"),
+    # 音频处理专用参数
+    enable_speaker_diarization: bool = Form(
+        False, description="是否启用说话人分离（音频多说话人识别，需要额外下载 Paraformer 模型）"
+    ),
     # 水印去除专用参数
     remove_watermark: bool = Form(False, description="是否启用水印去除（支持 PDF/图片）"),
     watermark_conf_threshold: float = Form(0.35, description="水印检测置信度阈值（0.0-1.0，推荐 0.35）"),
@@ -225,6 +229,8 @@ async def submit_task(
             "enable_keyframe_ocr": enable_keyframe_ocr,
             "ocr_backend": ocr_backend,
             "keep_keyframes": keep_keyframes,
+            # 音频处理参数
+            "enable_speaker_diarization": enable_speaker_diarization,
             # 水印去除参数
             "remove_watermark": remove_watermark,
             "watermark_conf_threshold": watermark_conf_threshold,
