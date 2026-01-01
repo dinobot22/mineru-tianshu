@@ -19,7 +19,9 @@ import os
 from loguru import logger
 from pathlib import Path
 import argparse
-from utils import parse_list_arg
+from utils import parse_list_arg, load_env_if_not_loaded
+
+load_env_if_not_loaded()
 
 
 class TianshuLauncher:
@@ -311,8 +313,8 @@ def main():
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="/tmp/mineru_tianshu_output",
-        help="输出目录 (默认: /tmp/mineru_tianshu_output)",
+        default=f"{os.getenv('OUTPUT_PATH', './app_data/mineru_tianshu_output')}",
+        help="输出目录 (默认: backend/app_data/mineru_tianshu_output)",
     )
     parser.add_argument("--api-port", type=int, default=8000, help="API服务器端口 (默认: 8000)")
     parser.add_argument("--worker-port", type=int, default=8001, help="Worker服务器端口 (默认: 8001)")

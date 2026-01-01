@@ -156,6 +156,7 @@ email-validator>=2.2.0   # Pydantic email 验证依赖
 # ============================================================================
 # Logging
 loguru>=0.7.0
+python-dotenv>=1.0.0
 
 # Office Document Parsing (MarkItDown backend)
 markitdown[all]>=0.1.3
@@ -174,6 +175,8 @@ typing-extensions>=4.12.0  # Python 3.12 类型支持
 setuptools>=75.0.0         # Python 3.12 构建工具
 lxml>=5.3.0                # Python 3.12 兼容版本 (有预编译 wheel)
 
+paddlex[ocr]
+doclayout_yolo
 # ============================================================================
 # System Requirements
 # ============================================================================

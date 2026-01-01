@@ -241,7 +241,7 @@ class PDFWatermarkHandler:
         import uuid
         import os
 
-        output_base = Path(os.getenv("OUTPUT_PATH", "/app/output"))
+        output_base = Path(os.getenv("OUTPUT_PATH", "./app_data/mineru_tianshu_output"))
         temp_dir = output_base / f"pdf_watermark_{uuid.uuid4().hex}"
         temp_dir.mkdir(parents=True, exist_ok=True)
 

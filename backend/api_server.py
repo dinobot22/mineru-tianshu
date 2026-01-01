@@ -12,27 +12,23 @@ import json
 import os
 import re
 import uuid
+import uvicorn
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from urllib.parse import quote
-
-import uvicorn
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from loguru import logger
 
-# 导入认证模块
-from auth import (
-    User,
-    Permission,
-    get_current_active_user,
-    require_permission,
-)
+from utils.env_utils import load_env_if_not_loaded
+from auth import User, Permission, get_current_active_user, require_permission
 from auth.auth_db import AuthDB
 from auth.routes import router as auth_router
 from task_db import TaskDB
+
+load_env_if_not_loaded()
 
 # 初始化 FastAPI 应用
 app = FastAPI(
@@ -50,26 +46,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # 初始化数据库
 # 确保使用环境变量中的数据库路径（与 Worker 保持一致）
-db_path_env = os.getenv("DATABASE_PATH")
-if db_path_env:
-    db_path = str(Path(db_path_env).resolve())
-    logger.info(f"📊 API Server using DATABASE_PATH: {db_path_env} -> {db_path}")
-    db = TaskDB(db_path)
-else:
-    logger.warning("⚠️  DATABASE_PATH not set in API Server, using default")
-    # 使用与 Worker 一致的默认路径
-    db_path = "/app/data/db/mineru_tianshu.db"
-    db = TaskDB(db_path)
+db_path_env = os.getenv("DATABASE_PATH", "./app_data/mineru_tianshu.db")
+db_path = str(Path(db_path_env).resolve())
+logger.info(f"📊 API Server using DATABASE_PATH: {db_path_env} -> {db_path}")
+db = TaskDB(db_path)
 auth_db = AuthDB()
 
 # 注册认证路由
 app.include_router(auth_router)
 
 # 配置输出目录（使用共享目录，Docker 环境可访问）
-OUTPUT_DIR = Path(os.getenv("OUTPUT_PATH", "/app/output"))
+OUTPUT_DIR = Path(os.getenv("OUTPUT_PATH", "./app_data/mineru_tianshu_output"))
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -203,7 +192,7 @@ async def submit_task(
     """
     try:
         # 创建共享的上传目录（Backend 和 Worker 都能访问）
-        upload_dir = Path("/app/uploads")
+        upload_dir = Path(os.path.join(os.getenv("BACKEND_APP_DATA_ROOT_PATH", "./app_data"), "uploads"))
         upload_dir.mkdir(parents=True, exist_ok=True)
 
         # 生成唯一的文件名（避免冲突）

@@ -15,83 +15,36 @@ import time
 import threading
 import signal
 import atexit
+import argparse
+import multiprocessing
+import socket
+import litserve as ls
+
 from pathlib import Path
 from typing import Optional
-import multiprocessing
-
-# Fix litserve MCP compatibility with mcp>=1.1.0
-# Completely disable LitServe's internal MCP to avoid conflicts with our standalone MCP Server
-import litserve as ls
-from litserve.connector import check_cuda_with_nvidia_smi
-from utils import parse_list_arg
-
-try:
-    # Patch LitServe's MCP module to disable it completely
-    import litserve.mcp as ls_mcp
-    import sys
-    from contextlib import asynccontextmanager
-
-    # Inject MCPServer (mcp.server.lowlevel.Server) as dummy
-    if not hasattr(ls_mcp, "MCPServer"):
-
-        class DummyMCPServer:
-            def __init__(self, *args, **kwargs):
-                pass
-
-        ls_mcp.MCPServer = DummyMCPServer
-        if "litserve.mcp" in sys.modules:
-            sys.modules["litserve.mcp"].MCPServer = DummyMCPServer
-
-    # Inject StreamableHTTPSessionManager as dummy
-    if not hasattr(ls_mcp, "StreamableHTTPSessionManager"):
-
-        class DummyStreamableHTTPSessionManager:
-            def __init__(self, *args, **kwargs):
-                pass
-
-        ls_mcp.StreamableHTTPSessionManager = DummyStreamableHTTPSessionManager
-        if "litserve.mcp" in sys.modules:
-            sys.modules["litserve.mcp"].StreamableHTTPSessionManager = DummyStreamableHTTPSessionManager
-
-    # Replace _LitMCPServerConnector with a complete dummy implementation
-    class DummyMCPConnector:
-        """完全禁用 LitServe 内置 MCP 的 Dummy 实现"""
-
-        def __init__(self, *args, **kwargs):
-            self.mcp_server = None
-            self.session_manager = None
-            self.request_handler = None
-
-        @asynccontextmanager
-        async def lifespan(self, app):
-            """空的 lifespan context manager，不做任何事情"""
-            yield  # 什么都不做，直接让服务器启动
-
-        def connect_mcp_server(self, *args, **kwargs):
-            """空的 connect_mcp_server 方法，不做任何事情"""
-            pass  # 什么都不做，跳过 MCP 初始化
-
-    # 替换 _LitMCPServerConnector 类
-    ls_mcp._LitMCPServerConnector = DummyMCPConnector
-
-    # 同时更新 sys.modules 中的引用
-    if "litserve.mcp" in sys.modules:
-        sys.modules["litserve.mcp"]._LitMCPServerConnector = DummyMCPConnector
-
-except Exception as e:
-    # If patching fails, log warning and continue
-    # The server might still work or fail with a clearer error message
-    import warnings
-
-    warnings.warn(f"Failed to patch litserve.mcp (MCP will be disabled): {e}")
-
 from loguru import logger
+
+from utils.env_utils import load_env_if_not_loaded
+from utils.perse_uitls import parse_list_arg
+from utils.litserve_utils import (
+    apply_litserve_patch,
+    verify_pytorch_cuda,
+    init_task_db,
+    resolve_auto_accelerator,
+    configure_model_source,
+)
+from utils.pdf_utils import get_pdf_page_count, split_pdf_file
+from output_normalizer import normalize_output
+from task_db import TaskDB
+
+# base config
+load_env_if_not_loaded()  # 如果.env未加载的话, 加载环境变量
+apply_litserve_patch()  # 应用 LitServe 补丁, 修复 MCP 与 mcp>=1.1.0 不兼容问题
+# 配置模型下载源（必须在 MinerU 初始化之前）:支持: modelscope, huggingface, auto (默认)
+configure_model_source(model_source=os.getenv("MODEL_DOWNLOAD_SOURCE", "auto").lower())
 
 # 添加父目录到路径以导入 MinerU
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from task_db import TaskDB
-from output_normalizer import normalize_output
 
 # 延迟导入 MinerU，避免过早初始化 CUDA
 # MinerU 会在 setup() 设置 CUDA_VISIBLE_DEVICES 后再导入
@@ -171,17 +124,17 @@ except ImportError as e:
 class MinerUWorkerAPI(ls.LitAPI):
     def __init__(
         self,
-        paddleocr_vl_vllm_api_list=None,
         output_dir=None,
         poll_interval=0.5,
         enable_worker_loop=True,
         paddleocr_vl_vllm_engine_enabled=False,
+        paddleocr_vl_vllm_api_list=None,
     ):
         """
         初始化 API：直接在这里接收所有需要的参数
         """
         super().__init__()
-        self.output_dir = output_dir or os.getenv("OUTPUT_PATH", "/app/output")
+        self.output_dir = output_dir
         self.poll_interval = poll_interval
         self.enable_worker_loop = enable_worker_loop
         self.paddleocr_vl_vllm_engine_enabled = paddleocr_vl_vllm_engine_enabled
@@ -223,48 +176,7 @@ class MinerUWorkerAPI(ls.LitAPI):
             logger.info(f"🎯 [GPU Isolation] Set CUDA_VISIBLE_DEVICES={gpu_id} (Physical GPU {gpu_id} → Logical GPU 0)")
             logger.info("🎯 [GPU Isolation] Set MINERU_DEVICE_MODE=cuda:0")
 
-        import socket
-
-        # 配置模型下载源（必须在 MinerU 初始化之前）
-        # 从环境变量 MODEL_DOWNLOAD_SOURCE 读取配置
-        # 支持: modelscope, huggingface, auto (默认)
-        model_source = os.getenv("MODEL_DOWNLOAD_SOURCE", "auto").lower()
-
-        if model_source in ["modelscope", "auto"]:
-            # 尝试使用 ModelScope（优先）
-            try:
-                import importlib.util
-
-                if importlib.util.find_spec("modelscope") is not None:
-                    logger.info("📦 Model download source: ModelScope (国内推荐)")
-                    logger.info("   Note: ModelScope automatically uses China mirror for faster downloads")
-                else:
-                    raise ImportError("modelscope not found")
-            except ImportError:
-                if model_source == "modelscope":
-                    logger.warning("⚠️  ModelScope not available, falling back to HuggingFace")
-                model_source = "huggingface"
-
-        if model_source == "huggingface":
-            # 配置 HuggingFace 镜像（从环境变量读取，默认使用国内镜像）
-            hf_endpoint = os.getenv("HF_ENDPOINT", "https://hf-mirror.com")
-            os.environ.setdefault("HF_ENDPOINT", hf_endpoint)
-            logger.info(f"📦 Model download source: HuggingFace (via: {hf_endpoint})")
-        elif model_source == "modelscope":
-            ## 通过环境变量配置,来让模型从modelscope平台下载, 或者从modelscope的缓存目录加载
-            os.environ["MINERU_MODEL_SOURCE"] = "modelscope"
-            logger.info("📦 Model download source: ModelScope")
-        else:
-            logger.warning(f"⚠️  Unknown model download source: {model_source}")
-
         self.device = device
-        # 从类属性获取配置（由 start_litserve_workers 设置）
-        # 默认使用共享输出目录（Docker 环境）
-        default_output = os.getenv("OUTPUT_PATH", "/app/output")
-        self.output_dir = getattr(self.__class__, "_output_dir", default_output)
-        self.poll_interval = getattr(self.__class__, "_poll_interval", 0.5)
-        self.enable_worker_loop = getattr(self.__class__, "_enable_worker_loop", True)
-
         # ============================================================================
         # 第二步：现在可以安全地导入 MinerU 了（CUDA_VISIBLE_DEVICES 已设置）
         # ============================================================================
@@ -287,56 +199,14 @@ class MinerUWorkerAPI(ls.LitAPI):
                 os.environ["MINERU_VIRTUAL_VRAM_SIZE"] = "1"
                 logger.info("🎮 [MinerU VRAM] CPU mode, set to 1GB")
 
-        # 验证 PyTorch CUDA 设置
-        try:
-            import torch
-
-            if torch.cuda.is_available():
-                visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", "all")
-                device_count = torch.cuda.device_count()
-                logger.info("✅ PyTorch CUDA verified:")
-                logger.info(f"   CUDA_VISIBLE_DEVICES = {visible_devices}")
-                logger.info(f"   torch.cuda.device_count() = {device_count}")
-                if device_count == 1:
-                    logger.info(f"   ✅ SUCCESS: Process isolated to 1 GPU (physical GPU {visible_devices})")
-                else:
-                    logger.warning(f"   ⚠️  WARNING: Expected 1 GPU but found {device_count}")
-            else:
-                logger.warning("⚠️  CUDA not available")
-        except Exception as e:
-            logger.warning(f"⚠️  Failed to verify PyTorch CUDA: {e}")
+        verify_pytorch_cuda()  # 验证 PyTorch CUDA 设置
 
         # 创建输出目录
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
         # 初始化任务数据库（从环境变量读取，兼容 Docker 和本地）
-        db_path_env = os.getenv("DATABASE_PATH")
-        if db_path_env:
-            db_path = Path(db_path_env).resolve()  # 使用 resolve() 转换为绝对路径
-            logger.info(f"📊 Using DATABASE_PATH from environment: {db_path_env} -> {db_path}")
-        else:
-            # 默认路径（与 TaskDB 和 AuthDB 保持一致）
-            db_path = Path("/app/data/db/mineru_tianshu.db").resolve()
-            logger.warning(f"⚠️  DATABASE_PATH not set, using default: {db_path}")
-
-        # 确保数据库目录存在
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # 使用绝对路径字符串传递给 TaskDB
-        db_path_str = str(db_path.absolute())
-        logger.info(f"📊 Database path (absolute): {db_path_str}")
-
-        self.task_db = TaskDB(db_path_str)
-
-        # 验证数据库连接并输出初始统计
-        try:
-            stats = self.task_db.get_queue_stats()
-            logger.info(f"📊 Database initialized: {db_path} (exists: {db_path.exists()})")
-            logger.info(f"📊 TaskDB.db_path: {self.task_db.db_path}")
-            logger.info(f"📊 Initial queue stats: {stats}")
-        except Exception as e:
-            logger.error(f"❌ Failed to initialize database or get stats: {e}")
-            logger.exception(e)
+        db_path = os.getenv("DATABASE_PATH", "./app_data/mineru_tianshu.db")
+        self.task_db = init_task_db(TaskDB, db_path)
 
         # Worker 状态
         self.running = True
@@ -357,9 +227,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         self.video_engine = None  # 延迟加载
         self.watermark_handler = None  # 延迟加载
 
-        logger.info("=" * 60)
-        logger.info(f"🚀 Worker Setup: {self.worker_id}")
-        logger.info("=" * 60)
+        logger.success(f"\n\n{'=' * 20} 🚀 Initializing New Worker Instance: {self.worker_id} {'=' * 40}\n")
         logger.info(f"📍 Device: {device}")
         logger.info(f"📂 Output Dir: {self.output_dir}")
         logger.info(f"🗃️  Database: {db_path}")
@@ -473,8 +341,7 @@ class MinerUWorkerAPI(ls.LitAPI):
                                 )
                             elif loop_count % 100 == 0:  # 每50秒（100次循环）输出一次
                                 logger.info(
-                                    f"💤 {self.worker_id} idle (loop #{loop_count}): "
-                                    f"No pending tasks. Queue stats: {stats}"
+                                    f"💤 {self.worker_id} idle (loop #{loop_count}): No pending tasks. Queue stats: {stats}"
                                 )
                         except Exception as e:
                             logger.error(f"❌ Failed to get queue stats: {e}")
@@ -565,55 +432,14 @@ class MinerUWorkerAPI(ls.LitAPI):
                 logger.info(f"🔧 Processing with MinerU Pipeline: {file_path}")
                 result = self._process_with_mineru(file_path, options)
 
-            # 7. auto 模式：根据文件类型自动选择引擎
-            elif backend == "auto":
-                # 7.1 检查是否是专业格式（FASTA, GenBank 等）
-                if FORMAT_ENGINES_AVAILABLE and FormatEngineRegistry.is_supported(file_path):
-                    logger.info(f"🧬 [Auto] Processing with format engine: {file_path}")
-                    result = self._process_with_format_engine(file_path, options)
-
-                # 7.2 检查是否是音频文件
-                elif file_ext in [".wav", ".mp3", ".flac", ".m4a", ".ogg"] and SENSEVOICE_AVAILABLE:
-                    logger.info(f"🎤 [Auto] Processing audio file: {file_path}")
-                    result = self._process_audio(file_path, options)
-
-                # 7.3 检查是否是视频文件
-                elif file_ext in [".mp4", ".avi", ".mkv", ".mov", ".flv", ".wmv"] and VIDEO_ENGINE_AVAILABLE:
-                    logger.info(f"🎬 [Auto] Processing video file: {file_path}")
-                    result = self._process_video(file_path, options)
-
-                # 7.4 默认使用 MinerU Pipeline 处理 PDF/图片
-                elif file_ext in [".pdf", ".png", ".jpg", ".jpeg"] and MINERU_PIPELINE_AVAILABLE:
-                    logger.info(f"🔧 [Auto] Processing with MinerU Pipeline: {file_path}")
-                    result = self._process_with_mineru(file_path, options)
-
-                # 7.5 兜底：Office 文档/文本/HTML 使用 MarkItDown（如果可用）
-                elif (
-                    file_ext in [".docx", ".xlsx", ".pptx", ".doc", ".xls", ".ppt", ".html", ".txt", ".csv"]
-                    and self.markitdown
-                ):
-                    logger.info(f"📄 [Auto] Processing Office/Text file with MarkItDown: {file_path}")
-                    result = self._process_with_markitdown(file_path)
-
-                else:
-                    # 没有合适的处理器
-                    supported_formats = "PDF, PNG, JPG (MinerU/PaddleOCR), Audio (SenseVoice), Video, FASTA, GenBank"
-                    if self.markitdown:
-                        supported_formats += ", Office/Text (MarkItDown)"
-                    raise ValueError(
-                        f"Unsupported file type: file={file_path}, ext={file_ext}. "
-                        f"Supported formats: {supported_formats}"
-                    )
-
-            else:
-                # 8. 尝试使用格式引擎（用户明确指定了 fasta, genbank 等）
+            # 6. 用户指定了 FASTA 或 GenBank 格式引擎
+            elif backend in ["fasta", "genbank"]:
                 if FORMAT_ENGINES_AVAILABLE:
                     engine = FormatEngineRegistry.get_engine(backend)
                     if engine is not None:
                         logger.info(f"🧬 Processing with format engine: {backend}")
                         result = self._process_with_format_engine(file_path, options, engine_name=backend)
                     else:
-                        # 未知的 backend
                         raise ValueError(
                             f"Unknown backend: {backend}. "
                             f"Supported backends: auto, pipeline, paddleocr-vl, sensevoice, video, fasta, genbank"
@@ -623,6 +449,46 @@ class MinerUWorkerAPI(ls.LitAPI):
                     raise ValueError(
                         f"Unknown backend: {backend}. "
                         f"Supported backends: auto, pipeline, paddleocr-vl, sensevoice, video"
+                    )
+
+            # auto 模式：根据文件类型自动选择引擎
+            elif backend == "auto":
+                # 检查是否是专业格式（FASTA, GenBank 等）
+                if FORMAT_ENGINES_AVAILABLE and FormatEngineRegistry.is_supported(file_path):
+                    logger.info(f"🧬 [Auto] Processing with format engine: {file_path}")
+                    result = self._process_with_format_engine(file_path, options)
+
+                # 检查是否是音频文件
+                elif file_ext in [".wav", ".mp3", ".flac", ".m4a", ".ogg"] and SENSEVOICE_AVAILABLE:
+                    logger.info(f"🎤 [Auto] Processing audio file: {file_path}")
+                    result = self._process_audio(file_path, options)
+
+                # 检查是否是视频文件
+                elif file_ext in [".mp4", ".avi", ".mkv", ".mov", ".flv", ".wmv"] and VIDEO_ENGINE_AVAILABLE:
+                    logger.info(f"🎬 [Auto] Processing video file: {file_path}")
+                    result = self._process_video(file_path, options)
+
+                # 默认使用 MinerU Pipeline 处理 PDF/图片
+                elif file_ext in [".pdf", ".png", ".jpg", ".jpeg"] and MINERU_PIPELINE_AVAILABLE:
+                    logger.info(f"🔧 [Auto] Processing with MinerU Pipeline: {file_path}")
+                    result = self._process_with_mineru(file_path, options)
+
+                # 兜底：Office 文档/文本/HTML 使用 MarkItDown（如果可用）
+                elif (
+                    file_ext in [".docx", ".xlsx", ".pptx", ".doc", ".xls", ".ppt", ".html", ".txt", ".csv"]
+                    and self.markitdown
+                ):
+                    logger.info(f"📄 [Auto] Processing Office/Text file with MarkItDown: {file_path}")
+                    result = self._process_with_markitdown(file_path)
+
+                # 没有合适的处理器
+                else:
+                    supported_formats = "PDF, PNG, JPG (MinerU/PaddleOCR), Audio (SenseVoice), Video, FASTA, GenBank"
+                    if self.markitdown:
+                        supported_formats += ", Office/Text (MarkItDown)"
+                    raise ValueError(
+                        f"Unsupported file type: file={file_path}, ext={file_ext}. "
+                        f"Supported formats: {supported_formats}"
                     )
 
             # 检查 result 是否被正确赋值
@@ -931,7 +797,6 @@ class MinerUWorkerAPI(ls.LitAPI):
         Returns:
             bool: True 表示已拆分，False 表示不需要拆分
         """
-        from utils.pdf_utils import get_pdf_page_count, split_pdf_file
 
         # 读取配置
         pdf_split_enabled = os.getenv("PDF_SPLIT_ENABLED", "true").lower() == "true"
@@ -1240,24 +1105,19 @@ class MinerUWorkerAPI(ls.LitAPI):
 
     def decode_request(self, request):
         """
-        解码请求
-
-        LitServe 会调用这个方法来解析请求
-        我们的请求格式: {"action": "health" | "poll"}
+        解码请求: LitServe 会调用这个方法来解析请求
+        请求格式: {"action": "health" | "poll"}
         """
         return request.get("action", "health")
 
     def predict(self, action):
         """
         处理请求
-
         Args:
             action: 请求动作
                 - "health": 健康检查
                 - "poll": 手动拉取任务（当 worker loop 禁用时）
-
-        Returns:
-            响应字典
+        Returns: 响应字典
         """
         if action == "health":
             # 健康检查
@@ -1368,42 +1228,17 @@ def start_litserve_workers(
         paddleocr_vl_vllm_api_list: PaddleOCR VL VLLM API 列表
     """
 
-    def resolve_auto_accelerator():
-        """
-        当 accelerator 设置为 "auto" 时，使用元数据及环境信息自动检测最合适的加速器类型(不直接导入torch)
-
-        Returns:
-            str: 检测到的加速器类型 ("cuda" 或 "cpu")
-        """
-        try:
-            from importlib.metadata import distribution
-
-            distribution("torch")
-            torch_is_installed = True
-        except Exception as e:
-            torch_is_installed = False
-            logger.warning(f"Torch is not installed or cannot be imported: {e}")
-
-        if torch_is_installed and check_cuda_with_nvidia_smi() > 0:
-            return "cuda"
-        return "cpu"
-
-    # 如果没有指定输出目录，从环境变量读取
-    if output_dir is None:
-        output_dir = os.getenv("OUTPUT_PATH", "/app/output")
-
     logger.info("=" * 60)
-    logger.info("🚀 Starting MinerU Tianshu LitServe Worker Pool")
-    logger.info("=" * 60)
-    logger.info(f"📂 Output Directory: {output_dir}")
-    logger.info(f"💾 Devices: {devices}")
-    logger.info(f"👷 Workers per Device: {workers_per_device}")
-    logger.info(f"🔌 Port: {port}")
-    logger.info(f"🔄 Worker Loop: {'Enabled' if enable_worker_loop else 'Disabled'}")
+    logger.success("🚀 Starting MinerU Tianshu LitServe Worker Pool Final Config: ")
+    logger.info(f"      📂 Output Directory: {output_dir}")
+    logger.info(f"      💾 Devices: {devices}")
+    logger.info(f"      👷 Workers per Device: {workers_per_device}")
+    logger.info(f"      🔌 Port: {port}")
+    logger.info(f"      🔄 Worker Loop: {'Enabled' if enable_worker_loop else 'Disabled'}")
     if enable_worker_loop:
-        logger.info(f"⏱️  Poll Interval: {poll_interval}s")
-    logger.info(f"🎮 Initial Accelerator setting: {accelerator}")
-
+        logger.info(f"      ⏱️  Poll Interval: {poll_interval}s")
+    logger.info(f"      🎮 Initial Accelerator setting: {accelerator}")
+    logger.info("=" * 60)
     if paddleocr_vl_vllm_engine_enabled:
         if not paddleocr_vl_vllm_api_list:
             logger.error(
@@ -1415,21 +1250,14 @@ def start_litserve_workers(
         os.environ.pop("PADDLEOCR_VL_VLLM_ENABLED", None)
         logger.info("PaddleOCR VL VLLM 引擎已禁用")
 
-    logger.info("=" * 60)
-
     # 1. 实例化 API 时传入数据
     api = MinerUWorkerAPI(
         output_dir=output_dir,
         poll_interval=poll_interval,
         enable_worker_loop=enable_worker_loop,
         paddleocr_vl_vllm_engine_enabled=paddleocr_vl_vllm_engine_enabled,
-        paddleocr_vl_vllm_api_list=paddleocr_vl_vllm_api_list,  # ✅ 在这里传
+        paddleocr_vl_vllm_api_list=paddleocr_vl_vllm_api_list,
     )
-
-    if accelerator == "auto":
-        # 手动解析accelerator的具体设置
-        accelerator = resolve_auto_accelerator()
-        logger.info(f"💫 Auto-resolved Accelerator: {accelerator}")
 
     server = ls.LitServer(
         api,
@@ -1439,13 +1267,12 @@ def start_litserve_workers(
         timeout=False,  # 不设置超时
     )
 
-    # 注册优雅关闭处理器
     def graceful_shutdown(signum=None, frame=None):
-        """处理关闭信号，优雅地停止 worker"""
+        """
+        优雅关闭处理器: 处理关闭信号，优雅地停止 worker
+        note:实际的 worker 实例由 LitServe 管理, teardown 会在每个 worker 进程中被调用
+        """
         logger.info("🛑 Received shutdown signal, gracefully stopping workers...")
-        # 注意：LitServe 会为每个设备创建多个 worker 实例
-        # 这里的 api 只是模板，实际的 worker 实例由 LitServe 管理
-        # teardown 会在每个 worker 进程中被调用
         if hasattr(api, "teardown"):
             api.teardown()
         sys.exit(0)
@@ -1471,14 +1298,12 @@ def start_litserve_workers(
 
 
 if __name__ == "__main__":
-    import argparse
-
     parser = argparse.ArgumentParser(description="MinerU Tianshu LitServe Worker Pool")
     parser.add_argument(
         "--output-dir",
         type=str,
-        default=None,
-        help="Output directory for processed files (default: from OUTPUT_PATH env or /app/output)",
+        default=os.getenv("OUTPUT_PATH", "./app_data/mineru_tianshu_output"),
+        help="输出目录 (默认: backend/app_data/mineru_tianshu_output)",
     )
     parser.add_argument("--port", type=int, default=8001, help="Server port (default: 8001, or from WORKER_PORT env)")
     parser.add_argument(
@@ -1513,16 +1338,31 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # ============================================================================
-    # 从环境变量读取配置（如果命令行没有指定）
+    # 配置优先级: 命令行参数 > 环境变量 > 默认值
     # ============================================================================
-    # 1. 如果没有通过命令行指定 devices，尝试自动检测或从环境变量读取
-    devices = args.devices
-    if devices == "auto":
-        # 首先尝试从环境变量 CUDA_VISIBLE_DEVICES 读取（如果用户明确设置了）
-        env_devices = os.getenv("CUDA_VISIBLE_DEVICES")
+    # 处理 port 配置
+    if args.port == 8001:  # 使用默认值时，尝试从环境变量读取
+        env_port = os.getenv("WORKER_PORT")
+        if env_port:
+            try:
+                args.port = int(env_port)
+            except ValueError:
+                logger.warning(f"⚠️  Invalid WORKER_PORT={env_port}, using default: 8001")
+
+    # 处理 workers_per_device 配置
+    if args.workers_per_device == 1:  # 使用默认值时，尝试从环境变量读取
+        env_workers = os.getenv("WORKER_GPUS")
+        if env_workers:
+            try:
+                args.workers_per_device = int(env_workers)
+            except ValueError:
+                logger.warning(f"⚠️  Invalid WORKER_GPUS={env_workers}, using default: 1")
+
+    # 处理 devices 配置
+    if args.devices == "auto":
+        env_devices = os.getenv("CUDA_VISIBLE_DEVICES")  # 优先从环境变量 CUDA_VISIBLE_DEVICES 读取
         if env_devices:
-            devices = env_devices
-            logger.info(f"📊 Using devices from CUDA_VISIBLE_DEVICES: {devices}")
+            args.devices = env_devices
         else:
             # 自动检测可用的 CUDA 设备
             try:
@@ -1530,52 +1370,37 @@ if __name__ == "__main__":
 
                 if torch.cuda.is_available():
                     device_count = torch.cuda.device_count()
-                    devices = ",".join(str(i) for i in range(device_count))
-                    logger.info(f"📊 Auto-detected {device_count} CUDA devices: {devices}")
+                    args.devices = ",".join(str(i) for i in range(device_count))
                 else:
-                    logger.info("📊 No CUDA devices available, using CPU mode")
-                    devices = "auto"  # 保持 auto，让 LitServe 使用 CPU
+                    args.devices = "auto"  # 保持 auto，让 LitServe 使用 CPU
             except Exception as e:
-                logger.warning(f"⚠️  Failed to detect CUDA devices: {e}, using CPU mode")
-                devices = "auto"
+                logger.warning(f"⚠️  Failed to detect CUDA devices: {e}")
+                args.devices = "auto"
 
-    # 2. 处理 devices 参数（支持逗号分隔的字符串）
-    if devices != "auto":
+    # 解析 devices（支持逗号分隔的字符串）
+    if args.devices != "auto":
         try:
-            devices = [int(d.strip()) for d in devices.split(",")]
-            logger.info(f"📊 Parsed devices: {devices}")
+            args.devices = [int(d.strip()) for d in args.devices.split(",")]
         except ValueError:
-            logger.error(f"❌ Invalid devices format: {devices}. Use comma-separated integers (e.g., '0,1,2')")
+            logger.error(f"❌ Invalid devices format: {args.devices}. Use comma-separated integers (e.g., '0,1,2')")
             sys.exit(1)
 
-    # 3. 如果没有通过命令行指定 workers-per-device，尝试从环境变量 WORKER_GPUS 读取
-    workers_per_device = args.workers_per_device
-    if args.workers_per_device == 1:  # 默认值
-        env_workers = os.getenv("WORKER_GPUS")
-        if env_workers:
-            try:
-                workers_per_device = int(env_workers)
-                logger.info(f"📊 Using workers-per-device from WORKER_GPUS: {workers_per_device}")
-            except ValueError:
-                logger.warning(f"⚠️  Invalid WORKER_GPUS value: {env_workers}, using default: 1")
+    # 处理 output_dir 配置
+    if args.output_dir is None:
+        args.output_dir = os.getenv("OUTPUT_PATH", "./app_data/mineru_tianshu_output")
 
-    # 4. 如果没有通过命令行指定 port，尝试从环境变量 WORKER_PORT 读取
-    port = args.port
-    if args.port == 8001:  # 默认值
-        env_port = os.getenv("WORKER_PORT", "8001")
-        try:
-            port = int(env_port)
-            logger.info(f"📊 Using port from WORKER_PORT env: {port}")
-        except ValueError:
-            logger.warning(f"⚠️  Invalid WORKER_PORT value: {env_port}, using default: 8001")
-            port = 8001
+    # 处理 accelerator 配置
+    if args.accelerator == "auto":
+        args.accelerator = resolve_auto_accelerator()  # 手动解析accelerator的具体设置
+        logger.info(f"💫 Auto-resolved Accelerator: {args.accelerator}")
 
+    # 启动 LitServe 工作进程
     start_litserve_workers(
         output_dir=args.output_dir,
         accelerator=args.accelerator,
-        devices=devices,
-        workers_per_device=workers_per_device,
-        port=port,
+        devices=args.devices,
+        workers_per_device=args.workers_per_device,
+        port=args.port,
         poll_interval=args.poll_interval,
         enable_worker_loop=not args.disable_worker_loop,
         paddleocr_vl_vllm_engine_enabled=args.paddleocr_vl_vllm_engine_enabled,
