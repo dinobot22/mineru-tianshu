@@ -188,8 +188,8 @@ class PaddleOCRVLVLLMEngine:
                     )
                 else:
                     self._pipeline = PaddleOCRVL(
-                        use_doc_orientation_classify=True,  # 文档方向分类，自动旋转文档
-                        use_doc_unwarping=True,  # 文本图像矫正，修正扭曲变形
+                        # use_doc_orientation_classify=True,  # 文档方向分类，自动旋转文档(该参数启用可能会导致图片变形)
+                        # use_doc_unwarping=True,  # 文本图像矫正，修正扭曲变形(该参数启用可能会导致图片变形)
                         use_layout_detection=True,  # 版面区域检测排序，智能排版,
                         vl_rec_backend="vllm-server",  # 使用 VLLM 后端
                         vl_rec_server_url=self.vllm_api_base,  # VLLM 服务器地址

@@ -176,8 +176,8 @@ class PaddleOCRVLEngine:
                 # 创建 PaddleOCRVL 实例（按照官方文档最佳实践）
                 # 参考: http://www.paddleocr.ai/main/version3.x/pipeline_usage/PaddleOCR-VL.html
                 self._pipeline = PaddleOCRVL(
-                    use_doc_orientation_classify=True,  # 文档方向分类，自动旋转文档
-                    use_doc_unwarping=True,  # 文本图像矫正，修正扭曲变形
+                    # use_doc_orientation_classify=True,  # 文档方向分类，自动旋转文档(该参数启用可能会导致图片变形)
+                    # use_doc_unwarping=True,  # 文本图像矫正，修正扭曲变形(该参数启用可能会导致图片变形)
                     use_layout_detection=True,  # 版面区域检测排序，智能排版
                 )
 

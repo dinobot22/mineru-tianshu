@@ -137,7 +137,7 @@ class RustFSClient:
             logger.error("   For Windows/WSL users:")
             logger.error("   1. Run 'ipconfig' in Windows to get your IP")
             logger.error("   2. Set RUSTFS_PUBLIC_URL=http://YOUR_WINDOWS_IP:9000")
-            raise ValueError("RUSTFS_PUBLIC_URL not configured. " "Please set RUSTFS_PUBLIC_URL in .env file.")
+            raise ValueError("RUSTFS_PUBLIC_URL not configured. Please set RUSTFS_PUBLIC_URL in .env file.")
 
         # 移除末尾的斜杠
         self.public_url = self.public_url.rstrip("/")
@@ -266,6 +266,7 @@ class RustFSClient:
         prefix: Optional[str] = None,
         extensions: Optional[List[str]] = None,
     ) -> Dict[str, str]:
+        # todo: 多线程上传
         """
         批量上传目录中的文件
 
