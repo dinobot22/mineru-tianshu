@@ -40,8 +40,8 @@ def load_env_if_not_loaded(env_file: Optional[str] = None) -> bool:
             os.makedirs(os.getenv("BACKEND_APP_DATA_ROOT_PATH"), exist_ok=True)
             logger.info(
                 f"\nData root directory created:\n"
-                f"  Relative path: {os.getenv("BACKEND_APP_DATA_ROOT_PATH")}\n"
-                f"  Absolute path: {os.path.abspath(os.getenv("BACKEND_APP_DATA_ROOT_PATH"))}"
+                f"  Relative path: {os.getenv('BACKEND_APP_DATA_ROOT_PATH')}\n"
+                f"  Absolute path: {os.path.abspath(os.getenv('BACKEND_APP_DATA_ROOT_PATH'))}"
             )
             # 确保数据输出目录环境变量一定存在(与老版本docker启动兼容, 命名一致性存在, 建议逐步废弃)
             if not os.environ.get("OUTPUT_PATH"):
@@ -51,8 +51,8 @@ def load_env_if_not_loaded(env_file: Optional[str] = None) -> bool:
             os.makedirs(os.environ["OUTPUT_PATH"], exist_ok=True)
             logger.info(
                 f"\nData output directory created:\n"
-                f"  Relative path: {os.environ["OUTPUT_PATH"]}\n"
-                f"  Absolute path: {os.path.abspath(os.environ["OUTPUT_PATH"])}"
+                f"  Relative path: {os.environ['OUTPUT_PATH']}\n"
+                f"  Absolute path: {os.path.abspath(os.environ['OUTPUT_PATH'])}"
             )
 
             # 确保数据库路径环境变量一定存在
@@ -60,8 +60,8 @@ def load_env_if_not_loaded(env_file: Optional[str] = None) -> bool:
                 os.environ["DATABASE_PATH"] = os.path.join(os.getenv("BACKEND_APP_DATA_ROOT_PATH"), "mineru_tianshu.db")
             logger.info(
                 f"\nDatabase path set:\n"
-                f"  Relative path: {os.environ["DATABASE_PATH"]}\n"
-                f"  Absolute path: {os.path.abspath(os.environ["DATABASE_PATH"])}"
+                f"  Relative path: {os.environ['DATABASE_PATH']}\n"
+                f"  Absolute path: {os.path.abspath(os.environ['DATABASE_PATH'])}"
             )
             return True
 
