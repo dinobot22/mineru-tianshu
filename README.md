@@ -293,25 +293,47 @@ make logs     # 查看日志
 
 ### 方式二：本地开发部署
 
-**前置要求**：Node.js 18+、Python 3.8+、CUDA（可选）
-
-**1. 安装依赖**
-
+**前置要求**：Node.js 18+、Python 3.8+、CUDA（可选）、Docker(可选,用于支持文件存储服务,如RustFS)
+#### *后端启动*
+##### 1. 启动本地文件存储服务, 如RustFS. (可选) 
+```bash
+# 启动 RustFS 服务
+docker run -d \
+  --name mineru_tianshu_rustfs \
+  -p 9000:9000 \
+  -p 9001:9001 \
+  rustfs/rustfs:latest
+# 查看是否启动成功
+docker logs mineru_tianshu_rustfs
+```
+##### 2. 安装依赖
 ```bash
 cd backend
 bash install.sh              # Linux/macOS 自动安装
 # 或 pip install -r requirements.txt
 ```
-
-**2. 启动后端**
-
+##### 3. 启动后端服务
 ```bash
+# 创建环境配置文件
+cp .env.example  .env  # 或者 cp .env.example  backend/.env 
+# 修改.env中的相关配置, 如指定显卡编号, 每张卡的worker数量, 文件存储服务的地址, 端口等.
+
+# 启动后端服务
 cd backend
 python start_all.py          # 启动所有服务
-python start_all.py --enable-mcp  # 启用 MCP 协议
-```
 
-**3. 启动前端**
+# 自定义启动
+python backend/start_all.py \
+  --api-port 8000 \
+  --worker-port 9000 \
+  --accelerator cuda \
+  --devices 0,1 \
+  --workers-per-device 2 \
+  --enable-mcp --mcp-port 8002
+# 其中的自定义参数用于覆盖.env中的部分相关配置
+```
+> 详见 [backend/README.md](backend/README.md)
+#### *启动前端*
 
 ```bash
 cd frontend

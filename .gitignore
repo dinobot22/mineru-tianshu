@@ -56,3 +56,8 @@ data/
 *.bak
 *.swp
 *~
+# 忽略 app_data 下所有内容
+backend/app_data/*
+!backend/app_data/
+!backend/app_data/readme.md
+rustfs_data

@@ -9,4 +9,6 @@ app_data/
 ├── uploads/  # 上传文件的存储文件夹
 ├── mineru_tianshu.db  # 任务数据库文件
 ├── readme.md  # 说明文档
+├── rustfs_data/  # RustFS 默认存储文件夹
+│   ├── temp
 ```

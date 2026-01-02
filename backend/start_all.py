@@ -316,8 +316,12 @@ def main():
         default=f"{os.getenv('OUTPUT_PATH', './app_data/mineru_tianshu_output')}",
         help="输出目录 (默认: backend/app_data/mineru_tianshu_output)",
     )
-    parser.add_argument("--api-port", type=int, default=8000, help="API服务器端口 (默认: 8000)")
-    parser.add_argument("--worker-port", type=int, default=8001, help="Worker服务器端口 (默认: 8001)")
+    parser.add_argument(
+        "--api-port", type=int, default=f"{os.getenv('API_PORT', '8000')}", help="API服务器端口 (默认: 8000)"
+    )
+    parser.add_argument(
+        "--worker-port", type=int, default=f"{os.getenv('WORKER_PORT', '8001')}", help="Worker服务器端口 (默认: 8001)"
+    )
     parser.add_argument(
         "--accelerator",
         type=str,
@@ -325,7 +329,12 @@ def main():
         choices=["auto", "cuda", "cpu"],
         help="加速器类型 (默认: auto，自动检测)",
     )
-    parser.add_argument("--workers-per-device", type=int, default=1, help="每个GPU的worker数量 (默认: 1)")
+    parser.add_argument(
+        "--workers-per-device",
+        type=int,
+        default=f"{os.getenv('WORKER_GPUS', '1')}",
+        help="每个GPU的worker数量 (默认: 1)",
+    )
     parser.add_argument("--devices", type=str, default="auto", help="使用的GPU设备，逗号分隔 (默认: auto，使用所有GPU)")
     parser.add_argument(
         "--enable-mcp", action="store_true", help="启用 MCP Server（支持 Model Context Protocol 远程调用）"
