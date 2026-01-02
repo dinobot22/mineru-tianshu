@@ -295,7 +295,7 @@ make logs     # 查看日志
 
 **前置要求**：Node.js 18+、Python 3.8+、CUDA（可选）、Docker(可选,用于支持文件存储服务,如RustFS)
 #### *后端启动*
-##### 1. 启动本地文件存储服务, 如RustFS. (可选) 
+##### 1. 启动本地文件存储服务, 如RustFS. (可选)
 ```bash
 # 启动 RustFS 服务
 docker run -d \
@@ -315,7 +315,7 @@ bash install.sh              # Linux/macOS 自动安装
 ##### 3. 启动后端服务
 ```bash
 # 创建环境配置文件
-cp .env.example  .env  # 或者 cp .env.example  backend/.env 
+cp .env.example  .env  # 或者 cp .env.example  backend/.env
 # 修改.env中的相关配置, 如指定显卡编号, 每张卡的worker数量, 文件存储服务的地址, 端口等.
 
 # 启动后端服务
