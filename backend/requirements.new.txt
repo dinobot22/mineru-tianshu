@@ -1,0 +1,76 @@
+
+--extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cu126/
+--extra-index-url https://download.pytorch.org/whl/cu126
+# base dependencies
+paddlepaddle-gpu==3.2.0
+torch==2.6.0+cu126
+torchvision==0.21.0+cu126
+torchaudio==2.6.0+cu126
+transformers==4.57.3
+huggingface-hub>=0.34.0,<1.0
+datasets==2.16.0
+modelscope
+fsspec[http]>=2023.1.0,<=2023.10.0
+
+# http server dependencies
+fastapi
+uvicorn
+python-multipart>=0.0.9   # FastAPI 文件上传必需
+aiohttp
+
+# serving dependencies
+litserve==0.2.16
+
+# pdf processing dependencies
+PyYAML==6.0.2
+mineru[core]==2.6.2
+paddleocr[doc-parser]
+paddlex[ocr]
+doclayout_yolo
+PyMuPDF>=1.24.0  # PDF processing
+Pillow>=11.0.0   # Image processing (Python 3.12 需要 11.0+)
+img2pdf>=0.5.0   # Image to PDF conversion
+pikepdf>=9.0.0   # Fast PDF manipulation (for PDF splitting, 6-8x faster than pypdf)
+markitdown[all]>=0.1.3
+
+# bio dependencies
+biopython>=1.80  # Biological sequence parsing (optional but recommended)
+
+
+# functional dependencies
+pyjwt>=2.9.0
+python-dotenv>=1.0.0
+loguru
+einops
+easydict
+addict
+minio>=7.2.0
+pydantic[email]==2.10.5  # Python 3.12 兼容,固定避免冲突
+pydantic-core==2.27.2    # Pydantic 核心依赖
+email-validator>=2.2.0   # Pydantic email 验证依赖
+
+# SSO Integration (Optional)
+authlib>=1.3.0
+python3-saml>=1.16.0
+ultralytics>=8.3.0            # YOLO11 framework for watermark detection
+simple-lama-inpainting>=0.1.0 # LaMa model for high-quality image inpainting
+dill>=0.4.0
+
+# Image Augmentation (Python 3.12 兼容版本)
+albucore==0.0.24
+albumentations==2.0.8
+kiwisolver>=1.4.9  # Python 3.12 必需
+matplotlib>=3.9.0  # Python 3.12 兼容
+contourpy>=1.3.0   # matplotlib 依赖,Python 3.12 兼容
+
+
+# MCP dependencies
+mcp==1.1.2
+sse-starlette==2.2.1
+jsonschema>=4.20.0         # MCP 依赖,固定下限避免回溯
+jsonschema-specifications>=2023.12.1  # 固定避免回溯
+
+# audio dependencies
+funasr>=1.2.7  # FunASR framework for SenseVoice with built-in speaker diarization
+ffmpeg-python  # Audio processing (also used by video processing)
+soundfile>=0.12.0  # Audio file I/O (required for audio segment extraction)
