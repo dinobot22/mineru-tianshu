@@ -16,7 +16,7 @@ import uvicorn
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
@@ -711,16 +711,16 @@ async def health_check():
 # ============================================================================
 # 自定义文件服务（支持 URL 编码的中文路径）
 # ============================================================================
-from urllib.parse import unquote
 
 
 @app.get("/v1/files/output/{file_path:path}", tags=["文件服务"])
+@app.get("/api/v1/files/output/{file_path:path}", tags=["文件服务"])
 async def serve_output_file(file_path: str):
     """
     提供输出文件的访问服务
 
     支持 URL 编码的中文路径
-    注意：Nginx 代理会去掉 /api/ 前缀，所以这里不需要 /api/
+    注意：Nginx 代理会去掉 /api/ 前缀，所以这里需要支持双路由
     """
     try:
         logger.debug(f"📥 Received file request: {file_path}")
